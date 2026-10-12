@@ -90,10 +90,23 @@ export default function SelfCheck({ onClose, closeLabel = '返回' }) {
                     <dd>{vp.report
                         ? `${vp.report.before} → ${vp.report.after}（${vp.report.grew >= 0 ? '+' : ''}${vp.report.grew}）`
                         : '未执行（当前视口不矮，或不在主屏 App 形态）'}</dd>
+                    {vp.report?.tries?.length > 0 && <>
+                        <dt>逐条手段</dt>
+                        <dd>
+                            {vp.report.tries.map((t, i) => <span key={i} className="note">
+                                {i + 1}）{t.name}：{t.error ? `出错 ${t.error}` : `${t.grew >= 0 ? '+' : ''}${t.grew}`}{' '}
+                            </span>)}
+                            <span className="note">
+                                视口本来就矮时才会逐条试，哪条把高度补回来就停；全 0 说明这些手段在 iOS 上都不起作用。
+                            </span>
+                        </dd>
+                    </>}
                 </dl>}
                 {vp && mode === 'standalone' && vp.screenPt[1] - vp.innerH > 1 && <p className="warn">
-                    ⚠ 视口比屏幕矮 {Math.round(vp.screenPt[1] - vp.innerH)} px ——
+                    ⚠ 视口比屏幕矮 {Math.round(vp.screenPt[1] - vp.innerH)} px（正好是状态栏那一截）——
                     屏幕底下那条边是<strong>系统涂在网页视口之外</strong>的颜色，阅读器画不到那里。
+                    这一版已经把底部安全区的让边收掉（那条边归系统，home indicator 不在我们内容上），
+                    正文能多用回这一截；边本身要等 iOS 重算视口才会消。
                 </p>}
             </section>
 

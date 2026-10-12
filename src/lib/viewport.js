@@ -1,12 +1,13 @@
 // iOS 从主屏冷启动时会把布局视口算短一截，屏幕底下那条「黑边」其实是系统涂在
 // **视口之外**的 manifest background_color —— 我们的元素根本画不进去。
-// 转屏能立刻治好，说明问题出在启动那一次布局，而不是 CSS。修法是摘掉 viewport-fit
-// 再装回去，逼 WebKit 重算一次视口。
+// 真机量到的形状（375 × 812 的机子，innerHeight 768）：缺的正好是状态栏那 44，
+// 而 `env()` 照样报上 44 / 下 31 —— 样式层以为内容铺满、布局层没有。
+// 转屏能立刻治好（= 一次真 resize），所以问题出在启动那一次布局，不在 CSS。
 //
 // 两条硬约束，都是从真机上踩回来的：
 // ① 只在确实算矮了的时候动手（见 viewportIsShort）；
-// ② 必须在首屏绘制之前做完。绘制之后再改 viewport，iOS 会出现「菜单条画在这里、
-//    点击落在那儿」的坐标错位 —— 白边没了换来点不动的按钮，比原来更糟。
+// ② 视口定下来之前不要把界面画出来。绘制之后再改 viewport，iOS 会出现
+//    「菜单条画在这里、点击落在那儿」的坐标错位 —— 白边没了换来点不动的按钮，更糟。
 
 let report = null
 
@@ -49,38 +50,89 @@ export const viewportIsShort = () => window.screen.height - window.innerHeight >
 
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches
 
+// 矮下来那截归系统，home indicator 其实落在我们画不到的地方 —— 这时再按 env() 给底部
+// 留 31px，就是白让正文少一截、底栏还往上飘。用这个类把底部让边收掉。
+const markShort = () => document.documentElement.classList
+    .toggle('vp-short', isStandalone() && viewportIsShort())
+
+// 转屏、软键盘、回到前台都会改视口，这个类必须跟着重算：修好之后还留着它，
+// 就会把真正需要的 home indicator 让边也一起吃掉
+addEventListener('resize', markShort)
+
 // rAF 在隐藏页里不跑，所以配一个定时器兜底，别让 promise 永远悬着
 const settle = () => new Promise(resolve => {
-    const timer = setTimeout(resolve, 120)
+    const timer = setTimeout(resolve, 250)
     requestAnimationFrame(() => requestAnimationFrame(() => {
         clearTimeout(timer)
         resolve()
     }))
 })
 
-// 同步改完 meta 就返回；重排落地之后才补上 after 数值，所以这里给的是 promise，
-// 只为让自检面板能拿到前后对比，调用方不需要等它
-export function fixViewportIfShort() {
-    if (!isStandalone() || !viewportIsShort()) return Promise.resolve(null)
+const forceLayout = () => void document.documentElement.getBoundingClientRect()
+
+// 真机（375×812，iOS 主屏 App）量到 innerHeight=768，缺的 44 正好是状态栏高度，
+// 而 env() 又报告上 44 / 下 31 —— 样式层以为铺满、布局层没有。转屏立刻就好，
+// 说明缺一次「让 WebKit 重新算视口」的动作。
+//
+// 第一条已试的手段（改 meta.content 再改回来）在真机上量出 +0，**已证伪**。
+// 所以这里把剩下的候选一次排完：每条自己跑一帧，视口够高就停，
+// 前后数值全部留在 viewportReport() 里，由自检面板带回桌面 —— 本机没有 iOS，
+// 哪种有效只能让真机说话。
+const LEVERS = [
+    ['改 meta 内容再改回', (meta, content) => {
+        meta.content = content.replace(/,\s*viewport-fit=cover/, '')
+        forceLayout()
+        meta.content = content
+    }],
+    ['把 meta 摘掉再插回', (meta, content, host, next) => {
+        meta.remove()
+        forceLayout()
+        host.insertBefore(meta, next)
+    }],
+    ['缩放抖一下', (meta, content) => {
+        meta.content = content.replace(/initial-scale=[\d.]+/, 'initial-scale=0.999')
+        forceLayout()
+        meta.content = content
+    }],
+    // 动态视口是 WebKit 在滚动时才重算的那一套：把文档临时撑高一点再滚一下
+    ['撑高一点再滚一下', () => {
+        const html = document.documentElement
+        const prev = html.style.minHeight
+        html.style.minHeight = `${window.screen.height + 8}px`
+        window.scrollTo(0, 8)
+        window.scrollTo(0, 0)
+        html.style.minHeight = prev
+    }],
+]
+
+// 在 React 挂载之前调用完，首屏就不会画在还没定下来的视口上
+// （上一版让绘制停在中间态，结果按钮「看得见点不着」，见 LEVERS 上方注释）
+export async function fixViewportIfShort() {
+    markShort()
+    if (!isStandalone() || !viewportIsShort()) return null
     const meta = document.querySelector('meta[name="viewport"]')
-    if (!meta) return Promise.resolve(null)
+    if (!meta) return null
     const content = meta.content
+    const host = meta.parentNode
+    const next = meta.nextSibling
     const before = window.innerHeight
-    // 摘掉再装回，中间逼一次同步布局，让 WebKit 重算一次视口。
-    // 全程在同一个任务里做完：绘制发生在任务结束时，所以 viewport-fit 缺失的那一帧
-    // 根本不会被画出来。要是像上一版那样等两帧再装回，安全区内边距会在中间态里
-    // 变成 0，绘制停在那个位置、命中测试却按最终布局算，按钮就会「看得见却点不着」。
-    meta.content = content.replace(/,\s*viewport-fit=cover/, '')
-    document.documentElement.getBoundingClientRect()
-    meta.content = content
-    return settle().then(() => {
-        report = {
-            before,
-            after: window.innerHeight,
-            grew: window.innerHeight - before,
-            at: Date.now(),
-            ...measureViewport(),
-        }
-        return report
-    })
+    const tries = []
+    for (const [name, run] of LEVERS) {
+        try { run(meta, content, host, next) } catch (e) { tries.push({ name, error: String(e) }); continue }
+        await settle()
+        const after = window.innerHeight
+        tries.push({ name, after, grew: after - before })
+        if (!viewportIsShort()) break
+    }
+    markShort()
+    report = {
+        before,
+        after: window.innerHeight,
+        grew: window.innerHeight - before,
+        at: Date.now(),
+        tries,
+        ...measureViewport(),
+    }
+    return report
 }
+
