@@ -2,8 +2,23 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { existsSync, readFileSync } from 'node:fs'
+import { execSync } from 'node:child_process'
 import { resolve } from 'node:path'
 import { BASE_URL } from './build/config.js'
+
+// 界面上必须能认出「现在跑的是哪一版」：Pages 的 sw.js 走 CDN 缓存，读者看到的可能
+// 是几分钟前的旧壳，光凭网址分辨不出来。把 commit 短 SHA 与构建时间烧进包里。
+function appBuild() {
+    const run = cmd => {
+        try { return execSync(cmd, { encoding: 'utf8', cwd: import.meta.dirname }).trim() } catch { return '' }
+    }
+    const sha = run('git rev-parse --short HEAD') || (process.env.GITHUB_SHA ?? '').slice(0, 7)
+    return JSON.stringify({
+        id: sha || '未知',
+        dirty: !!run('git status --porcelain'),
+        at: new Date().toISOString(),
+    })
+}
 
 // 开发期放宽 connect-src 以允许 Vite HMR 的 websocket；生产构建用严格版
 const cspDirectives = ({ dev }) => [
@@ -60,6 +75,7 @@ export default defineConfig({
     // base 是唯一路径来源：manifest 的 start_url/scope、SW 注册路径、
     // precache 列表全部由它派生，换 repo 名只需改 APP_SLUG
     base: BASE_URL,
+    define: { __APP_BUILD__: appBuild() },
     plugins: [
         injectCsp(),
         react(),

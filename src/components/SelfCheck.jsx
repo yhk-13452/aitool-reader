@@ -4,6 +4,7 @@ import { verifyPrecache } from '../lib/offline-check.js'
 import { log } from '../lib/log.js'
 import { applyUpdate, checkNow, updateAvailable } from '../lib/update.js'
 import { STORAGE_PREFIX, DB_NAME, OPFS_ROOT_DIR } from '../lib/storage.js'
+import { APP_BUILD, buildLine } from '../lib/build.js'
 import { measureViewport, viewportReport } from '../lib/viewport.js'
 
 const fmtBytes = n => `${(n / 1048576).toFixed(1)} MB`
@@ -54,6 +55,15 @@ export default function SelfCheck({ onClose, closeLabel = '返回' }) {
 
             <section>
                 <h2>运行形态</h2>
+                <dl>
+                    <dt>版本</dt>
+                    <dd>
+                        {buildLine()}
+                        <span className="note">
+                            {APP_BUILD.id === '未知' ? '构建时没取到 git 信息' : '这一串就是仓库里的 commit 短 SHA，可直接和部署页核对'}
+                        </span>
+                    </dd>
+                </dl>
                 <p className="note">
                     这台浏览器满足阅读器的运行条件：{caps.length} 项能力全过，
                     当前为{mode === 'standalone' ? '主屏 App' : 'Safari 标签页'}形态。
@@ -73,12 +83,13 @@ export default function SelfCheck({ onClose, closeLabel = '返回' }) {
                     <dt>innerHeight</dt><dd>{vp.innerH} px</dd>
                     <dt>clientHeight</dt><dd>{vp.clientH} px</dd>
                     <dt>visualViewport</dt><dd>{vp.visualH ?? '—'} px</dd>
+                    <dt>viewport meta</dt><dd>{vp.meta ?? '缺失'}</dd>
                     <dt>安全区实测</dt>
                     <dd>上 {vp.insets.top} · 下 {vp.insets.bottom} · 左 {vp.insets.left} · 右 {vp.insets.right} px</dd>
                     <dt>启动视口修正</dt>
                     <dd>{vp.report
                         ? `${vp.report.before} → ${vp.report.after}（${vp.report.grew >= 0 ? '+' : ''}${vp.report.grew}）`
-                        : '未执行（Safari 标签页形态不需要）'}</dd>
+                        : '未执行（当前视口不矮，或不在主屏 App 形态）'}</dd>
                 </dl>}
                 {vp && mode === 'standalone' && vp.screenPt[1] - vp.innerH > 1 && <p className="warn">
                     ⚠ 视口比屏幕矮 {Math.round(vp.screenPt[1] - vp.innerH)} px ——

@@ -48,6 +48,8 @@ const browserGlobals = {
     Element: 'readonly',
     DocumentFragment: 'readonly',
     StorageManager: 'readonly',
+    // 构建期由 vite define 替换掉（vite.config.js），运行时并不存在这个全局
+    __APP_BUILD__: 'readonly',
 }
 
 const nodeGlobals = {

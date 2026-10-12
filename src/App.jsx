@@ -14,6 +14,7 @@ import { applyUpdate, subscribe } from './lib/update.js'
 import { bookmarkFiles, libraryBackupFiles, restoreBackup } from './lib/export.js'
 import { saveFiles } from './lib/share.js'
 import { fmtBytes, fmtDate } from './lib/format.js'
+import { buildLine } from './lib/build.js'
 import { log } from './lib/log.js'
 import FoliateView from './components/FoliateView.jsx'
 import SelfCheck from './components/SelfCheck.jsx'
@@ -239,8 +240,31 @@ export default function App() {
     const turnLeft = () => { selfJump.current = false; view?.goLeft() }
     const turnRight = () => { selfJump.current = false; view?.goRight() }
 
+    // 正文在 iframe 里，宿主收不到那一下点击，所以误点的证据只能从转出来的坐标里拿。
+    // 真机上出现过「菜单条画在这里、点击落在那儿」的偏移（启动后改 viewport 的后遗症）：
+    // 不猜，量出来 —— 正文收到了一个其实落在可见按钮矩形上（或上下 90px 内）的点击，
+    // 就把偏差记进日志环，自检页的日志能把数字带回桌面。上限 5 条，别把环刷满。
+    const misalignRef = useRef(0)
+    const measureMisalign = (x, y) => {
+        if (misalignRef.current >= 5) return
+        for (const btn of document.querySelectorAll('.chrome:not(.hide) button')) {
+            const r = btn.getBoundingClientRect()
+            if (x < r.left - 8 || x > r.right + 8) continue
+            const dy = y < r.top ? y - r.top : y > r.bottom ? y - r.bottom : 0
+            if (Math.abs(dy) > 90) continue
+            misalignRef.current++
+            log.warn('菜单按钮的位置收到了正文的点击', {
+                按钮: btn.textContent.trim(),
+                偏差: Math.round(dy),
+                点于: Math.round(y),
+                矩形: `${Math.round(r.top)}–${Math.round(r.bottom)}`,
+            })
+        }
+    }
+
     // 正文里的一次点击只做一件事，按「先收选区 → 收抽屉 → 边缘翻页 → 中间切菜单」的优先级判
     const onContentTap = ({ x, y, target }) => {
+        if (chrome) measureMisalign(x, y)
         if (sel) {
             clearSelections(view)
             setSel(null)
@@ -664,7 +688,9 @@ export default function App() {
         {/* 新版本提示常驻、不给关闭按钮：它不是通知，是「你现在看的这套代码已经过期」的状态 */}
         {updateReady && <p className="update-bar">
             <strong>有新版本可用</strong>
-            <span className="note">当前还在跑旧资源；重启后会加载新版本，书架与书签都存在本地库里，不受影响。</span>
+            <span className="note">
+                当前跑的是 {buildLine()}；重启后会加载新版本，书架与书签都存在本地库里，不受影响。
+            </span>
             <button className="btn" onClick={() => applyUpdate()}>重启更新</button>
         </p>}
 
@@ -867,6 +893,8 @@ export default function App() {
                             运行形态、离线缓存、能力门禁与一份环形调试日志都在这页。
                             平时用不到，出问题再看。
                         </p>
+                        {/* 版本要常驻：Pages 的 sw.js 走 CDN 缓存，光看网址分辨不出手机上跑的是哪套代码 */}
+                        <p className="note">当前版本 {buildLine()}</p>
                     </div>
                 </main>
             </>}
