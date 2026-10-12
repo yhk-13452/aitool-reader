@@ -50,8 +50,8 @@ const PAGING_REASONS = new Set(['page', 'snap', 'scroll'])
 const EDGE = 0.25
 // 「点段收藏」开着时中间归收藏，唤出菜单改点屏幕最上方这一条
 const HOT_ZONE = 44
-// 反馈浮层：info 类（已加书签、已切换繁体）会自动收起，错误类必须手动关
-const TOAST_MS = 6000
+// 反馈浮层：info 类（已加书签、已切换繁体、已回到上次位置）会自动收起，错误类必须手动关
+const TOAST_MS = 3000
 
 // 三条导出通道发生的并不是同一件事，标题就别用一句「导出成功」糊过去：
 // 下载没有回执、分享可能被用户取消，界面上说的必须和实际对得上
@@ -828,14 +828,14 @@ export default function App() {
                         <ul className="shelf">
                             {shelf.map(item => <li key={item.id}>
                                 <button className="shelf-open" onClick={() => openStored(item)}>
-                                    {item.display}
+                                    <span className="shelf-name">{item.display}</span>
+                                    <span className="note">
+                                        {fmtProgress(item.progress)
+                                            ? `${fmtBytes(item.size)} · ${fmtProgress(item.progress)}`
+                                            : `${fmtBytes(item.size)} · 未开始`}
+                                        {item.added ? ` · 导入于 ${fmtDate(item.added)}` : ''}
+                                    </span>
                                 </button>
-                                <span className="note">
-                                    {fmtProgress(item.progress)
-                                        ? `${fmtBytes(item.size)} · ${fmtProgress(item.progress)}`
-                                        : `${fmtBytes(item.size)} · 未开始`}
-                                    {item.added ? ` · 导入于 ${fmtDate(item.added)}` : ''}
-                                </span>
                                 <button className="mark-del" aria-label="移出书架" onClick={() => dropBook(item)}>✕</button>
                             </li>)}
                         </ul>
