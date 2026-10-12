@@ -13,3 +13,6 @@ vibe_images/
 # 根目录下的 Markdown 只有 README.md 入库，其余都是本地开发笔记
 /*.md
 !/README.md
+
+# 自测夹具：本地生成与使用，不入库
+build/fixtures/
