@@ -9,7 +9,7 @@ const fmtBytes = n => `${(n / 1048576).toFixed(1)} MB`
 
 // 脚手架自检面板：装对了没有的证据都在这里。有书时以 overlay 形式浮在阅读界面上方
 // （`overlay` prop），因为换页会把 foliate-view 卸载、重新解一遍书。
-// 后续要并进正式界面的 debug 面板（backlog：隐藏手势唤出）。
+// 后续要并进正式界面的 debug 面板。
 export default function SelfCheck({ overlay, onClose }) {
     const [caps, setCaps] = useState(() => checkCapabilities())
     const [estimate, setEstimate] = useState(null)

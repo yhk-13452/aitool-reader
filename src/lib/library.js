@@ -182,7 +182,7 @@ export async function removeAnnotation(id) {
 // 诚实说明：指纹存在 IndexedDB 自己的 settings 里，而 ITP 是按 origin 整体清除的，
 // 主数据没了时指纹通常也没了 → 这条路只能抓到「部分丢失 / 我们自己写坏 / 单独清了 books 表」。
 // 整库消失那种情况只能靠 localStorage 副本兜（另一套驱逐路径，iOS 上的表现未证实），
-// 真正的兜底是全库备份导出（backlog 高优）。
+// 真正的兜底是全库备份导出。
 
 const LS_FINGERPRINT_KEY = `${STORAGE_PREFIX}:fingerprint`
 

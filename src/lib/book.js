@@ -1,14 +1,14 @@
 import { UnsupportedTypeError, NotFoundError, ResponseError } from 'foliate-js/view.js'
 import { log } from './log.js'
 
-// foliate-js 只认 book 接口的格式；TXT/PDF 需自写适配（backlog 中优），
+// foliate-js 只认 book 接口的格式；TXT/PDF 需自写适配模块，
 // 所以这里把「打不开」拆成能行动的两类，别让用户对着白屏猜。
 export function describeOpenError(err) {
     if (err instanceof UnsupportedTypeError) {
         return {
             title: '这个格式目前还打不开',
             detail: '已实测支持 EPUB、MOBI、FB2、CBZ（桌面浏览器实测，iOS 真机仍待验证）；'
-                + 'AZW3/KF8 尚未实测，PRC/PDB 与 TXT/PDF 的适配尚未接入，已列入待办。',
+                + 'AZW3/KF8 尚未实测，PRC/PDB 与 TXT/PDF 的适配尚未支持。',
         }
     }
     if (err instanceof NotFoundError) return { title: '文件是空的', detail: '请确认文件完整后重新导入。' }

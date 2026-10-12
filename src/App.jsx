@@ -93,7 +93,7 @@ export default function App() {
     const [pendingFile, setPendingFile] = useState(null)
     const [type, setType] = useState(TYPO_DEFAULTS)
     const [updateReady, setUpdateReady] = useState(false)
-    // 阅读位置与「跳转参观」分开记：只有用户自己翻页才算他读到了哪儿（决策 14）。
+    // 阅读位置与「跳转参观」分开记：只有用户自己翻页才算他读到了哪儿。
     // readPos 是那个位置，canReturn 表示当前屏幕是跳过来的、可以一键回去。
     const [canReturn, setCanReturn] = useState(false)
     const readPos = useRef(null)
