@@ -5,7 +5,7 @@ import { log } from '../lib/log.js'
 import { applyUpdate, checkNow, updateAvailable } from '../lib/update.js'
 import { STORAGE_PREFIX, DB_NAME, OPFS_ROOT_DIR } from '../lib/storage.js'
 import { APP_BUILD, buildLine } from '../lib/build.js'
-import { measureViewport, viewportReport } from '../lib/viewport.js'
+import { measureViewport } from '../lib/viewport.js'
 
 const fmtBytes = n => `${(n / 1048576).toFixed(1)} MB`
 
@@ -25,7 +25,7 @@ export default function SelfCheck({ onClose, closeLabel = '返回' }) {
     useEffect(() => {
         storageEstimate().then(setEstimate)
         setCaps(checkCapabilities())
-        setVp({ ...measureViewport(), report: viewportReport() })
+        setVp(measureViewport())
         // 首次安装时 SW 可能还在装 precache；不依赖 serviceWorker.ready（无激活 SW 时它永不 resolve）
         let alive = true
         ;(async () => {
@@ -86,28 +86,19 @@ export default function SelfCheck({ onClose, closeLabel = '返回' }) {
                     <dt>viewport meta</dt><dd>{vp.meta ?? '缺失'}</dd>
                     <dt>安全区实测</dt>
                     <dd>上 {vp.insets.top} · 下 {vp.insets.bottom} · 左 {vp.insets.left} · 右 {vp.insets.right} px</dd>
-                    <dt>启动视口修正</dt>
-                    <dd>{vp.report
-                        ? `${vp.report.before} → ${vp.report.after}（${vp.report.grew >= 0 ? '+' : ''}${vp.report.grew}）`
-                        : '未执行（当前视口不矮，或不在主屏 App 形态）'}</dd>
-                    {vp.report?.tries?.length > 0 && <>
-                        <dt>逐条手段</dt>
-                        <dd>
-                            {vp.report.tries.map((t, i) => <span key={i} className="note">
-                                {i + 1}）{t.name}：{t.error ? `出错 ${t.error}` : `${t.grew >= 0 ? '+' : ''}${t.grew}`}{' '}
-                            </span>)}
-                            <span className="note">
-                                视口本来就矮时才会逐条试，哪条把高度补回来就停；全 0 说明这些手段在 iOS 上都不起作用。
-                            </span>
-                        </dd>
-                    </>}
+                    <dt>状态栏这一档</dt>
+                    <dd>{vp.statusbar ?? '未设置'}（网页顶部实测让了 {vp.insets.top} px）</dd>
                 </dl>}
-                {vp && mode === 'standalone' && vp.screenPt[1] - vp.innerH > 1 && <p className="warn">
-                    ⚠ 视口比屏幕矮 {Math.round(vp.screenPt[1] - vp.innerH)} px（正好是状态栏那一截）——
-                    屏幕底下那条边是<strong>系统涂在网页视口之外</strong>的颜色，阅读器画不到那里。
-                    这一版已经把底部安全区的让边收掉（那条边归系统，home indicator 不在我们内容上），
-                    正文能多用回这一截；边本身要等 iOS 重算视口才会消。
-                </p>}
+                {vp && mode === 'standalone' && (vp.insets.top > 0
+                    ? <p className="warn">
+                        ⚠ 网页还铺在状态栏底下（{vp.insets.top} px），而视口比屏幕矮{' '}
+                        {Math.round(vp.screenPt[1] - vp.innerH)} px —— 屏幕底下那条边就是这么来的：
+                        那一条落在网页视口之外，阅读器画不到。
+                    </p>
+                    : <p className="ok">
+                        ✓ 状态栏归系统留着（网页顶部让边 0），网页底部贴着屏幕真底；
+                        视口比屏幕矮的 {Math.round(vp.screenPt[1] - vp.innerH)} px 就是状态栏那一截，属正常形状。
+                    </p>)}
             </section>
 
             <section>

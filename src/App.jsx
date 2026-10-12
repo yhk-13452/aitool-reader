@@ -138,6 +138,17 @@ export default function App() {
     // 有新版本时 SW 的回调可能在这次会话的任意时刻报进来，所以订阅而不是启动时读一次
     useEffect(() => subscribe(setUpdateReady), [])
 
+    // 状态栏那一条现在归系统画（见 index.html 的 status-bar-style），颜色由 theme-color 决定：
+    // 让它跟着阅读底色走，否则羊皮纸正文上面压着一条深色边。
+    // iOS 在 standalone 下会不会跟着运行时改，属未证实项（真机清单里另记一条）。
+    useEffect(() => {
+        const meta = document.querySelector('meta[name="theme-color"]')
+        if (!meta) return
+        meta.content = book
+            ? themeOf(type.theme).bg
+            : getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()
+    }, [book, type.theme])
+
     // 列表字形跟着「书签 + 当前简繁模式」重算：转换只走一次 Worker，不做逐条缓存
     useEffect(() => {
         const sw = scriptRef.current

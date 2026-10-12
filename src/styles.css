@@ -6,14 +6,7 @@
     --line: #2e2e4a;
     --ok: #6ecb8b;
     --warn: #f0b354;
-    /* 底部让边只从这里取：iOS 把视口算短的那一版里，home indicator 落在我们画不到的
-       地方，再按 env() 让边就是白少一截正文（.vp-short 由 lib/viewport.js 挂） */
-    --sab: env(safe-area-inset-bottom);
 }
-
-/* 用 html.vp-short 而不是 .vp-short：与上面的 :root 同权重就得靠书写顺序赢，
-   提一档权重免得以后有人挪规则就把这个开关弄丢 */
-html.vp-short { --sab: 0px; }
 
 * { box-sizing: border-box; }
 
@@ -27,7 +20,7 @@ html, body {
 .shell {
     max-width: 46rem;
     margin: 0 auto;
-    padding: 1.25rem 1rem calc(2rem + var(--sab));
+    padding: 1.25rem 1rem calc(2rem + env(safe-area-inset-bottom));
 }
 
 h1 { font-size: 1.35rem; margin: 0 0 .25rem; }
@@ -107,7 +100,7 @@ button:disabled { opacity: .4; }
     inset: 0;
     /* paginator 的 48px 让边已归零，正文自己躲开状态栏与底部横条；
        让出来的部分由 .stage 的主题底色铺，不会再露出深色边 */
-    padding: env(safe-area-inset-top) 0 var(--sab);
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
 }
 foliate-view { display: block; width: 100%; height: 100%; }
 
@@ -130,7 +123,7 @@ foliate-view { display: block; width: 100%; height: 100%; }
 }
 .chrome-bottom {
     bottom: 0;
-    padding-bottom: calc(.4rem + var(--sab));
+    padding-bottom: calc(.4rem + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
     justify-content: center;
 }
@@ -195,7 +188,7 @@ foliate-view { display: block; width: 100%; height: 100%; }
     flex: 1;
     min-height: 0;
     overflow: auto;
-    padding: .6rem .75rem calc(1rem + var(--sab));
+    padding: .6rem .75rem calc(1rem + env(safe-area-inset-bottom));
 }
 @keyframes slide-left { from { transform: translateX(-100%); } }
 @keyframes slide-up { from { transform: translateY(100%); } }
@@ -232,7 +225,7 @@ foliate-view { display: block; width: 100%; height: 100%; }
 .toasts-bottom {
     top: auto;
     bottom: 0;
-    padding: 0 .35rem calc(.35rem + var(--sab));
+    padding: 0 .35rem calc(.35rem + env(safe-area-inset-bottom));
 }
 
 

@@ -5,7 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#1a1a2e">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- black-translucent 让网页顶到状态栏底下，可 iOS 18 给的布局视口照样少一截
+         （真机量到 812 的屏 innerHeight=768），于是底下空出一条系统涂色的死边。
+         default 是系统自己留状态栏、网页底部贴着屏幕真底 —— 同样 768，但不再有空边。
+         状态栏那一条的颜色交给 theme-color，运行时跟着阅读底色走。 -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
     <title>本地电子书阅读器</title>
 </head>
