@@ -130,6 +130,10 @@ export default function FoliateView({
             if (disposed) return
             view.renderer.addEventListener('relocate', onRendererRelocate)
             if (cssRef.current) view.renderer.setStyles?.(cssRef.current)
+            // 上游 paginator 默认给正文上下各让 48px（#top 的 --_margin），收起菜单后
+            // 那就是屏幕边上两条空带。归零让正文真铺满；状态栏与底部横条的避让改由
+            // .reader-host 的 safe-area 内边距负责。
+            view.renderer.setAttribute?.('margin', '0')
             // 有上次位置就回到那里，没有则跳过 nav / 封面等非正文段落到正文起点
             const last = locationRef.current
             let restored = last

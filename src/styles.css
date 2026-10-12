@@ -95,7 +95,13 @@ button:disabled { opacity: .4; }
 
 /* ---- 沉浸式阅读：正文铺满整屏，菜单/抽屉/工具条/浮层全部盖在它上面 ---- */
 .stage { position: fixed; inset: 0; background: var(--bg); }
-.reader-host { position: absolute; inset: 0; }
+.reader-host {
+    position: absolute;
+    inset: 0;
+    /* paginator 的 48px 让边已归零，正文自己躲开状态栏与底部横条；
+       让出来的部分由 .stage 的主题底色铺，不会再露出深色边 */
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
 foliate-view { display: block; width: 100%; height: 100%; }
 
 .chrome {
