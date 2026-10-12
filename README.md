@@ -18,7 +18,7 @@
 
 ## 怎么用
 
-1. 用 Safari 打开部署地址。
+1. 用 Safari 打开网页地址。
 2. 分享 → **添加到主屏幕**。
 3. **之后从主屏图标进入，再在那里导入书籍。**
 
@@ -35,14 +35,6 @@ npm run build      # 产出 dist/
 npm run lint       # 最小 ESLint，只查未定义标识符与未使用变量
 npm run preview    # 本地预览生产包
 ```
-
-自测夹具（EPUB / MOBI / FB2 / CBZ 各一个小文件）与生成脚本都在 `build/fixtures/`：
-
-```bash
-python build/fixtures/make-smoke-epub.py
-```
-
-部署：推送到 GitHub 后由 `.github/workflows/pages.yml` 构建并发布，仓库 Settings → Pages 的 Source 选 **GitHub Actions**。部署路径的唯一来源是 `build/config.js` 里的 `APP_SLUG`，Vite `base`、manifest、Service Worker 注册都由它派生。
 
 ## 数据与边界
 
