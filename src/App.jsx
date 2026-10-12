@@ -693,8 +693,8 @@ export default function App() {
 
     // 只做 [目录] [书签] 两个抽屉：笔记还没有创建与编辑入口，放个空抽屉就是半成品
     const dialogs = <>
-        {/* 自检是浮层：不能替代阅读区渲染，否则一进自检就合上书，回来要重解一遍整本书 */}
-        {showCheck && <SelfCheck overlay={!!book} onClose={() => setShowCheck(false)} />}
+        {/* 自检一律是浮层：不能替代阅读区渲染，否则一进自检就合上书，回来要重解一遍整本书 */}
+        {showCheck && <SelfCheck onClose={() => setShowCheck(false)} closeLabel={book ? '返回阅读' : '返回书架'} />}
         {pendingFile && <InstallConfirm
             file={pendingFile}
             onProceed={async () => {
@@ -800,9 +800,6 @@ export default function App() {
                                     e.target.value = ''
                                 }} />
                         </label>
-                        <button className="btn" onClick={() => setShowCheck(x => !x)}>
-                            {showCheck ? '返回书架' : '自检'}
-                        </button>
                     </div>
                 </header>
 
@@ -861,6 +858,14 @@ export default function App() {
                             备份 = 一个清单 JSON 加上每本书的原始文件，一次系统分享就能存进「文件」App；
                             恢复时把这些文件一起选中即可。书签按正文位置（CFI）接回原书，
                             所以<strong>必须连同书本身一起备份</strong>，只留 JSON 是导不回来的。
+                        </p>
+                    </div>
+
+                    <div className="shelf-tools">
+                        <button className="btn" onClick={() => setShowCheck(true)}>自检</button>
+                        <p className="note">
+                            运行形态、离线缓存、能力门禁与一份环形调试日志都在这页。
+                            平时用不到，出问题再看。
                         </p>
                     </div>
                 </main>

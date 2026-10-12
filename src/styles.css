@@ -57,7 +57,7 @@ dd { margin: 0; font-size: .85rem; overflow-wrap: anywhere; }
 .logs li.error { color: #ef7b7b; }
 .logs li.warn { color: var(--warn); }
 
-button {
+button, .btn {
     font: inherit;
     font-size: .85rem;
     color: var(--fg);
@@ -324,6 +324,17 @@ foliate-view { display: block; width: 100%; height: 100%; }
     border-top: 1px solid var(--line);
 }
 .backup-row .note { flex: 1 1 100%; margin: .25rem 0 0; }
+
+.shelf-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+}
+.shelf-tools .note { flex: 1 1 100%; margin: .25rem 0 0; }
 
 .stats { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .stats-head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .5rem; }

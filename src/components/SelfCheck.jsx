@@ -7,10 +7,10 @@ import { STORAGE_PREFIX, DB_NAME, OPFS_ROOT_DIR } from '../lib/storage.js'
 
 const fmtBytes = n => `${(n / 1048576).toFixed(1)} MB`
 
-// 脚手架自检面板：装对了没有的证据都在这里。有书时以 overlay 形式浮在阅读界面上方
-// （`overlay` prop），因为换页会把 foliate-view 卸载、重新解一遍书。
+// 脚手架自检面板：装对了没有的证据都在这里。一律以浮层呈现：书架态下若改成并排渲染，
+// 页面里就会有两个 .shell 各自滚动；阅读态下换页会把 foliate-view 卸载、重新解一遍书。
 // 后续要并进正式界面的 debug 面板。
-export default function SelfCheck({ overlay, onClose }) {
+export default function SelfCheck({ onClose, closeLabel = '返回' }) {
     const [caps, setCaps] = useState(() => checkCapabilities())
     const [estimate, setEstimate] = useState(null)
     const [offline, setOffline] = useState(null)
@@ -42,12 +42,12 @@ export default function SelfCheck({ overlay, onClose }) {
     const mode = detectMode()
 
     return (
-        <main className={overlay ? 'shell sheet' : 'shell'}>
+        <main className="shell sheet">
             <div className="sheet-head">
                 <h1>脚手架自检</h1>
-                {overlay && <button onClick={onClose}>返回阅读</button>}
+                <button onClick={onClose}>{closeLabel}</button>
             </div>
-            <p className="lead">部署形态、离线缓存与安全配置是否正确，全在这一页核对；导入书籍后仍可用顶部「自检」切回来。</p>
+            <p className="lead">部署形态、离线缓存与安全配置是否正确，全在这一页核对。平时用不到，出问题再看 —— 入口在书架底部和阅读时的设置抽屉里。</p>
 
             <section>
                 <h2>运行形态</h2>
