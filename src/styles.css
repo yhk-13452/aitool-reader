@@ -1,0 +1,396 @@
+:root {
+    color-scheme: dark;
+    --bg: #1a1a2e;
+    --fg: #e8e8f0;
+    --muted: #9a9ab0;
+    --line: #2e2e4a;
+    --ok: #6ecb8b;
+    --warn: #f0b354;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.shell {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: 1.25rem 1rem calc(2rem + env(safe-area-inset-bottom));
+}
+
+h1 { font-size: 1.35rem; margin: 0 0 .25rem; }
+h2 { font-size: 1rem; margin: 0 0 .5rem; color: var(--muted); font-weight: 600; }
+
+.lead { color: var(--muted); margin: 0 0 1.5rem; }
+
+section {
+    border-top: 1px solid var(--line);
+    padding: 1rem 0;
+}
+
+.caps { list-style: none; padding: 0; margin: 0; }
+.caps li { font-size: .9rem; padding: .15rem 0; }
+
+dl { margin: 0; display: grid; grid-template-columns: 10rem 1fr; gap: .35rem 1rem; }
+dt { color: var(--muted); font-size: .85rem; }
+dd { margin: 0; font-size: .85rem; overflow-wrap: anywhere; }
+
+.ok { color: var(--ok); }
+.warn { color: var(--warn); }
+
+.note { color: var(--muted); font-size: .8rem; margin: .4rem 0 0; }
+
+.logs { list-style: none; padding: 0; margin: 0; max-height: 18rem; overflow: auto; }
+.logs li {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .75rem;
+    padding: .3rem 0;
+    border-bottom: 1px solid var(--line);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.logs li.error { color: #ef7b7b; }
+.logs li.warn { color: var(--warn); }
+
+button {
+    font: inherit;
+    font-size: .85rem;
+    color: var(--fg);
+    background: var(--line);
+    border: 1px solid #3d3d5c;
+    border-radius: .5rem;
+    padding: .5rem .85rem;
+}
+button:disabled { opacity: .4; }
+
+/* ---- 阅读界面 ---- */
+.app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+}
+
+.bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .5rem .75rem;
+    border-bottom: 1px solid var(--line);
+    font-size: .9rem;
+}
+.bar-actions { display: flex; gap: .4rem; }
+.btn { cursor: pointer; }
+.btn input[type="file"] { display: none; }
+.btn.on { border-color: var(--ok); color: var(--ok); }
+
+/* 导入后自检页变成可折叠区，需要能滚动 */
+.app > .shell { flex: 1; min-height: 0; overflow: auto; }
+
+/* ---- 沉浸式阅读：正文铺满整屏，菜单/抽屉/工具条/浮层全部盖在它上面 ---- */
+.stage { position: fixed; inset: 0; background: var(--bg); }
+.reader-host { position: absolute; inset: 0; }
+foliate-view { display: block; width: 100%; height: 100%; }
+
+.chrome {
+    position: absolute;
+    left: 0; right: 0;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .4rem .6rem;
+    background: rgba(26, 26, 46, .95);
+    font-size: .85rem;
+    transition: transform .18s ease, opacity .18s ease;
+}
+.chrome-top {
+    top: 0;
+    padding-top: calc(.4rem + env(safe-area-inset-top));
+    border-bottom: 1px solid var(--line);
+}
+.chrome-bottom {
+    bottom: 0;
+    padding-bottom: calc(.4rem + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    justify-content: center;
+}
+/* 隐藏后必须让点击穿到正文上，否则整屏顶部/底部各有一条吃不掉点击的死区 */
+.chrome.hide { pointer-events: none; }
+.chrome-top.hide { transform: translateY(-100%); opacity: 0; }
+.chrome-bottom.hide { transform: translateY(100%); opacity: 0; }
+.chrome-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+.chrome-nav { display: flex; gap: .3rem; }
+.chrome .btn { background: #26263f; }
+/* 从书签/目录跳过来时唯一该够得到的按钮：靠右、描边加重，别和状态 chip 长一个样 */
+.return-read { margin-left: auto; border-color: #7a7ab0; font-weight: 600; }
+
+/* 当前生效的模式要在屏幕上看得见，不然「点段收藏中」这种状态只能靠猜 */
+.chip {
+    flex-shrink: 0;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: .05rem .5rem;
+    font-size: .72rem;
+    color: var(--ok);
+    white-space: nowrap;
+}
+
+.scrim { position: fixed; inset: 0; z-index: 14; background: rgba(0, 0, 0, .45); }
+.drawer {
+    position: fixed;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+}
+.drawer-left {
+    top: 0; bottom: 0; left: 0;
+    width: min(80vw, 22rem);
+    border-right: 1px solid var(--line);
+    animation: slide-left .18s ease;
+}
+.drawer-bottom {
+    left: 0; right: 0; bottom: 0;
+    max-height: 72dvh;
+    border-top: 1px solid var(--line);
+    animation: slide-up .18s ease;
+}
+.drawer-head {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem .75rem;
+    padding-top: calc(.5rem + env(safe-area-inset-top));
+    border-bottom: 1px solid var(--line);
+}
+.drawer-head strong { margin-right: auto; font-size: .9rem; }
+.drawer-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: .6rem .75rem calc(1rem + env(safe-area-inset-bottom));
+}
+@keyframes slide-left { from { transform: translateX(-100%); } }
+@keyframes slide-up { from { transform: translateY(100%); } }
+
+/* 选区工具条：贴在选择框上方居中，按钮上的 mousedown 已阻止默认，不会把选区点没 */
+.sel-bar {
+    position: fixed;
+    z-index: 16;
+    transform: translate(-50%, -100%);
+    display: flex;
+    gap: .3rem;
+    padding: .3rem;
+    border: 1px solid #3d3d5c;
+    border-radius: .5rem;
+    background: #22223c;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .45);
+}
+
+/* 阅读态的反馈是浮层：占屏幕位置的不是它该做的事，但错误类留在屏幕上直到用户关掉 */
+.toasts {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    padding: .35rem .35rem 0;
+    padding-top: calc(.35rem + env(safe-area-inset-top));
+    pointer-events: none;
+}
+.toasts > * { pointer-events: auto; }
+.toasts .error-banner.fatal { max-height: 45dvh; overflow: auto; }
+/* 确认类浮层放底部：它自己会消失，压住顶部菜单条 6 秒不值当 */
+.toasts-bottom {
+    top: auto;
+    bottom: 0;
+    padding: 0 .35rem calc(.35rem + env(safe-area-inset-bottom));
+}
+
+
+/* 有书时自检页浮起来盖住阅读界面，foliate-view 保持挂载不重新解书 */
+.sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    overflow: auto;
+    background: var(--bg);
+}
+.sheet-head { display: flex; align-items: baseline; gap: .75rem; }
+.sheet-head h1 { margin-right: auto; }
+
+.error-banner {
+    margin: 0;
+    padding: .6rem .75rem;
+    background: #40202a;
+    color: #ffd9d9;
+    font-size: .85rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+}
+.error-banner button { margin-left: auto; }
+
+.marks, .toc { list-style: none; padding: 0; margin: 0 0 1rem; }
+.marks li { padding: .4rem 0; border-bottom: 1px solid var(--line); }
+.marks .mark-text { background: none; border: none; padding: 0; text-align: start; color: var(--fg); }
+.marks code { display: block; font-size: .7rem; color: var(--muted); overflow-wrap: anywhere; }
+.toc li { padding: .1rem 0; }
+.toc button { background: none; border: none; padding: .25rem 0; font-size: .85rem; }
+
+.marks li { display: flex; align-items: baseline; gap: .5rem; }
+.mark-body { flex: 1; min-width: 0; }
+.marks .mark-text { display: block; width: 100%; text-align: start; }
+/* 整段收藏会把全段文字带进来，列表里限三行，超出交给跳转后的正文看 */
+.marks .mark-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.mark-del {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--muted);
+    padding: .2rem .3rem;
+    font-size: .8rem;
+}
+
+.shelf { list-style: none; padding: 0; margin: 0; }
+.shelf li {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    padding: .6rem 0;
+    border-bottom: 1px solid var(--line);
+}
+.shelf-open {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: start;
+    font-size: .95rem;
+    overflow-wrap: anywhere;
+}
+.shelf .note { flex-shrink: 0; }
+
+.error-banner.fatal { background: #4a1f1f; }
+/* 反馈类提示（已加书签、已回到上次位置）走同一条横幅，底色区分开，别用报警红 */
+.error-banner.info { background: #223a4a; color: #dbeafe; }
+.mode-warn { display: block; margin: 0 0 1rem; font-size: .85rem; }
+
+/* 新版本待重启：绿底区别于报警红，它描述的是「可以更新」而不是「出问题了」 */
+.update-bar {
+    margin: 0;
+    padding: .6rem .75rem;
+    background: #1f3a2e;
+    color: #d6f5e3;
+    font-size: .85rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+}
+.update-bar .note { flex: 1 1 100%; margin: 0; }
+.update-bar button { margin-left: auto; }
+
+.backup-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+}
+.backup-row .note { flex: 1 1 100%; margin: .25rem 0 0; }
+
+.stats { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.stats-head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+.stats-head h2 { margin-right: auto; }
+.year-pick { display: inline-flex; gap: .25rem; }
+.stats-months { list-style: none; padding: 0; margin: 0; }
+.stats-months > li { padding: .4rem 0; border-bottom: 1px solid var(--line); }
+.stats-month { display: flex; align-items: baseline; gap: .6rem; }
+.stats-month strong { min-width: 3.2rem; }
+.stats-books { list-style: none; margin: .25rem 0 0; padding: 0 0 0 1rem; }
+.stats-books li { display: flex; align-items: baseline; gap: .6rem; font-size: .85rem; padding: .12rem 0; }
+.stats-book-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.stats > .note { display: block; margin: .6rem 0 0; }
+
+/* 安装引导：iOS 没有 beforeinstallprompt，只能自绘步骤 */
+.guide {
+    margin: 0 0 1.25rem;
+    padding: .9rem 1rem;
+    border: 1px solid #6a5220;
+    border-radius: .5rem;
+    background: #241d10;
+}
+.guide h2 { color: var(--warn); margin-bottom: .35rem; }
+.guide .note { color: var(--fg); }
+.guide-steps { margin: .6rem 0 .8rem; padding-left: 1.4rem; font-size: .9rem; }
+.guide-steps li { padding: .15rem 0; }
+
+.dialog-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 22;
+}
+.dialog {
+    max-width: 30rem;
+    padding: 1.1rem 1.2rem;
+    border: 1px solid var(--line);
+    border-radius: .6rem;
+    background: var(--bg);
+}
+.dialog h2 { color: var(--warn); }
+.dialog p { font-size: .9rem; margin: 0 0 .6rem; }
+.dialog-actions { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .8rem; }
+
+/* 排版面板：全部用离档按钮，不用滑杆 —— iOS 上单手翻页时滑杆容易误触。
+   它现在住在设置抽屉里，分隔线交给 .setting-group 的 border-top，别画两条 */
+.typo {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    font-size: .85rem;
+}
+.typo-row { display: flex; align-items: center; gap: .4rem; }
+.typo-label { color: var(--muted); min-width: 2.5rem; }
+.typo-value { min-width: 3.2rem; text-align: center; }
+.typo .note { margin: .1rem 0 0; font-size: .75rem; }
+
+.settings { display: flex; flex-direction: column; gap: .7rem; }
+.setting-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .4rem;
+    padding-top: .7rem;
+    border-top: 1px solid var(--line);
+    font-size: .85rem;
+}
+.setting-group .note { flex: 1 1 100%; margin: .15rem 0 0; }

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.scratch/
+dev-dist/
+vibe_images/
+*.local
+.env
+.env.*
+*.p12
+*.key
+.DS_Store
+
+# 根目录下的 Markdown 只有 README.md 入库，其余都是本地开发笔记
+/*.md
+!/README.md
