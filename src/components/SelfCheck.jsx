@@ -4,6 +4,7 @@ import { verifyPrecache } from '../lib/offline-check.js'
 import { log } from '../lib/log.js'
 import { applyUpdate, checkNow, updateAvailable } from '../lib/update.js'
 import { STORAGE_PREFIX, DB_NAME, OPFS_ROOT_DIR } from '../lib/storage.js'
+import { measureViewport, viewportReport } from '../lib/viewport.js'
 
 const fmtBytes = n => `${(n / 1048576).toFixed(1)} MB`
 
@@ -16,12 +17,14 @@ export default function SelfCheck({ onClose, closeLabel = '返回' }) {
     const [offline, setOffline] = useState(null)
     const [logs, setLogs] = useState(log.all())
     const [updateCheck, setUpdateCheck] = useState(null)
+    const [vp, setVp] = useState(null)
 
     useEffect(() => log.subscribe(() => setLogs(log.all())), [])
 
     useEffect(() => {
         storageEstimate().then(setEstimate)
         setCaps(checkCapabilities())
+        setVp({ ...measureViewport(), report: viewportReport() })
         // 首次安装时 SW 可能还在装 precache；不依赖 serviceWorker.ready（无激活 SW 时它永不 resolve）
         let alive = true
         ;(async () => {
@@ -61,6 +64,26 @@ export default function SelfCheck({ onClose, closeLabel = '返回' }) {
                         ⚠ Safari 标签页模式：<strong>此模式下的存储会在 7 天无交互后被清除</strong>，
                         且与主屏 App 的存储互不可见。请先「分享 → 添加到主屏幕」，之后只在主屏窗口里使用与导入书籍。
                     </p>}
+            </section>
+
+            <section>
+                <h2>视口与安全区</h2>
+                {vp && <dl>
+                    <dt>屏幕</dt><dd>{vp.screenPt[0]} × {vp.screenPt[1]} pt · dpr {vp.dpr}</dd>
+                    <dt>innerHeight</dt><dd>{vp.innerH} px</dd>
+                    <dt>clientHeight</dt><dd>{vp.clientH} px</dd>
+                    <dt>visualViewport</dt><dd>{vp.visualH ?? '—'} px</dd>
+                    <dt>安全区实测</dt>
+                    <dd>上 {vp.insets.top} · 下 {vp.insets.bottom} · 左 {vp.insets.left} · 右 {vp.insets.right} px</dd>
+                    <dt>启动视口修正</dt>
+                    <dd>{vp.report
+                        ? `${vp.report.before} → ${vp.report.after}（${vp.report.grew >= 0 ? '+' : ''}${vp.report.grew}）`
+                        : '未执行（Safari 标签页形态不需要）'}</dd>
+                </dl>}
+                {vp && mode === 'standalone' && vp.screenPt[1] - vp.innerH > 1 && <p className="warn">
+                    ⚠ 视口比屏幕矮 {Math.round(vp.screenPt[1] - vp.innerH)} px ——
+                    屏幕底下那条边是<strong>系统涂在网页视口之外</strong>的颜色，阅读器画不到那里。
+                </p>}
             </section>
 
             <section>
