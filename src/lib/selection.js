@@ -1,8 +1,8 @@
 import { log } from './log.js'
 
 // 从 foliate-view 里取当前选区并算出 CFI。
-// iOS 上 iframe 内的 getSelection() 有已知破损（真机待测项 T2），所以这里把每一步的实际情况
-// 都记进日志环：真机上长按选字后点「收藏」，即使手机没连 Mac 挂 Web Inspector，日志也能带出结论。
+// iOS 会把每一步的实际情况记进日志环：长按选出来的字常被系统自己收掉（模拟器实测：主屏态抬手即折叠，
+// Safari 标签页态还会被地址栏收放顶出屏幕），所以真机上即使看到「捕获失败」，不连 Mac 也有证据可查。
 // textOf 由简繁切换器提供：屏幕上显示的可能是转换后的字形，书签必须存原始字形，
 // 否则切回原文（或换设备）时书签文字和正文一个字都对不上。
 export function captureSelection(view, textOf) {
@@ -58,8 +58,7 @@ export function clearSelections(view) {
 }
 
 // 不依赖原生选区的创建路径：点正文块级元素，整段收藏。
-// iOS 上 iframe 内的 getSelection() 可靠性是待测项 T2，长按选字可能整条走不通，
-// 所以必须有这条只靠 click + Range over 元素就能生成 CFI 的退路。
+// iOS 上长按选出来的字活不长（抬手即被系统收掉），所以必须有这条只靠 click + Range over 元素就能生成 CFI 的退路。
 const BLOCK = 'p, li, blockquote, dd, dt, h1, h2, h3, h4, h5, h6, pre'
 
 // Range 必须锚在文本节点上，不能锚在元素上。

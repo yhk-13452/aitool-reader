@@ -79,30 +79,53 @@ export default function FoliateView({
             // 焦点在 iframe 里时宿主收不到按键，键盘翻页得从正文这边转出去
             doc.addEventListener('keydown', ev => keyRef.current?.(ev.key))
 
-            // 拖选过程中 selectionchange 每帧都来，包围盒和文字长度没变就不往上报
+            // 拖选过程中 selectionchange 每帧都来，包围盒和文字长度没变就不往上报。
+            // 应用内日志环只有 500 条，是给真机排障留证据的预算，所以一次手势只记两条：
+            // 冒头那条（证明系统把选区报上来了）和收起那条（选区自己没了 / 被点掉了），
+            // 中间的坐标漂移不占环。
             let lastKey
+            let boxReported = false
             const report = () => {
                 const sel = win?.getSelection?.()
                 const range = sel && !sel.isCollapsed && sel.rangeCount > 0 ? sel.getRangeAt(0) : null
                 if (!range) {
                     if (lastKey === null) return
                     lastKey = null
+                    if (boxReported) {
+                        boxReported = false
+                        log.info('选区已收起')
+                    }
                     selRef.current?.(null)
                     return
                 }
                 const box = hostBox(win, range.getBoundingClientRect())
-                if (!box) return
+                if (!box) {
+                    if (boxReported) return
+                    boxReported = true
+                    log.warn('选区坐标算不出来', { len: sel.toString().length })
+                    return
+                }
                 const text = sel.toString()
                 const key = `${Math.round(box.left)},${Math.round(box.top)},`
                     + `${Math.round(box.width)},${Math.round(box.height)},${text.length}`
                 if (key === lastKey) return
                 lastKey = key
+                if (!boxReported) {
+                    boxReported = true
+                    log.info('选区上报', {
+                        l: Math.round(box.left), t: Math.round(box.top),
+                        w: Math.round(box.width), h: Math.round(box.height), len: text.length,
+                    })
+                }
                 selRef.current?.({ ...box, text })
             }
+
             doc.addEventListener('selectionchange', report)
-            // iOS 长按选字之后 selectionchange 到底会不会触发，正是待测项 T2；pointerup 再兜一次
+            // iOS 长按选字之后 selectionchange 未必会补最后一次（选区手柄落定常在 pointerup 之后），
+            // 所以 pointerup 再兜一次
             doc.addEventListener('pointerup', report)
         })
+
         // relocate 只能从 renderer 上听，不能听 view 转发的：view 转出去的 detail 把 reason 丢了
         // （view.js:316 组装 lastLocation 时没带上它），而「读者自己翻页」和「goTo 跳转」的区分
         // 就靠这一个字段（paginator.js：翻页 page/snap，跳转 navigation，重排恢复 anchor）。

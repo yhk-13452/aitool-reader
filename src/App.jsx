@@ -84,6 +84,9 @@ export default function App() {
     const [error, setError] = useState(null)
     const [showCheck, setShowCheck] = useState(false)
     const inputRef = useRef(null)
+    // 上一次重定位落在哪一页：同一页的 cfi 是同一个串，用来分辨「真的换页了」和
+    // 「iOS 长按选字后的那次回弹」
+    const lastCfiRef = useRef(null)
     const highlighterRef = useRef(null)
     const scriptRef = useRef(null)
     const [scriptMode, setScriptMode] = useState('orig')
@@ -218,9 +221,16 @@ export default function App() {
     }
 
     const onRelocate = detail => {
+        const prevCfi = lastCfiRef.current
+        lastCfiRef.current = detail.cfi ?? null
         setLoc(detail)
-        // 换页之后选区的屏幕坐标已经不属于这一页，工具条留着就是骗人
-        setSel(null)
+        // 换页之后选区的屏幕坐标已经不属于这一页，工具条留着就是骗人。
+        // 但 iOS 长按选字收尾时分页器会回弹一次（reason: snap，页没变、cfi 一模一样），
+        // 无条件清掉就等于工具条刚冒头就被自己按回去 —— iOS 18.6 模拟器实测：
+        // 「选区上报」之后紧跟一条 snap 重定位，选区工具条因此一次都没出现过。
+        const moved = prevCfi !== null && prevCfi !== (detail.cfi ?? null)
+        if (sel && moved) log.info('换页清掉选区', { reason: detail.reason, section: detail.section?.current })
+        if (moved) setSel(null)
         if (!book || !detail.cfi) return
         const here = {
             bookId: book.id,
@@ -495,7 +505,7 @@ export default function App() {
         if (!result.ok) {
             setError({
                 title: '没有取到选区',
-                detail: `${result.reason} —— iOS 上的原生选区可靠性正是待测项 T2；设置里的「点段收藏」不依赖它，可先用那条`,
+                detail: `${result.reason} —— 手机上长按选出来的字，常被系统自己收掉。改用设置里的「点段收藏」：开着它直接点一段就能收藏，不依赖选区。`,
             })
             return
         }
