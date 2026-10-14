@@ -516,6 +516,22 @@ export default function App() {
         setSel(null)
     }
 
+    // 复制走宿主的剪贴板：`sel.text` 已经是屏幕上看到的那串字（开着简繁转换时就是转换后的字形），
+    // 用户要的「复制」是复制他看到的东西，所以这里故意不走 textOf。
+    const copySelection = async () => {
+        const text = sel?.text ?? ''
+        log.info('点复制', { 长度: text.length, 有剪贴板: !!navigator.clipboard?.writeText })
+        if (!text) return
+        try {
+            await navigator.clipboard.writeText(text)
+            log.info('复制写入完成', { 长度: text.length })
+            setError({ tone: 'info', title: '已复制', detail: text.slice(0, 40) })
+        } catch (e) {
+            log.warn('复制失败', e)
+            setError({ title: '复制没成功', detail: '系统没让网页写进剪贴板。长按选区后系统菜单里的「拷贝」可以先用一次。' })
+        }
+    }
+
     // 「点段收藏」模式下的落点：整段 Range → CFI，不经过 getSelection()
     const onPick = async target => {
         const result = captureParagraph(view, target, textOf)
@@ -828,7 +844,7 @@ export default function App() {
                         onCheck={() => { setDrawer(null); setShowCheck(true) }} />
                 </Drawer>}
 
-                {sel && <SelectionBar sel={sel} onBookmark={addBookmark}
+                {sel && <SelectionBar sel={sel} onBookmark={addBookmark} onCopy={copySelection}
                     onDismiss={() => { clearSelections(view); setSel(null) }} />}
 
                 <div className="toasts">{bannersTop}</div>
