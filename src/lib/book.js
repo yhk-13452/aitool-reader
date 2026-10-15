@@ -7,8 +7,8 @@ export function describeOpenError(err) {
     if (err instanceof UnsupportedTypeError) {
         return {
             title: '这个格式目前还打不开',
-            detail: '已实测支持 EPUB、MOBI、FB2、CBZ（桌面浏览器实测，iOS 真机仍待验证）；'
-                + 'AZW3/KF8 尚未实测，PRC/PDB 与 TXT/PDF 的适配尚未支持。',
+            detail: '已实测支持 EPUB、MOBI、AZW3（KF8）、FB2、CBZ（桌面浏览器实测，iOS 真机仍待验证）；'
+                + 'AZW4/PRC/PDB 与 TXT/PDF 的适配尚未支持。',
         }
     }
     if (err instanceof NotFoundError) return { title: '文件是空的', detail: '请确认文件完整后重新导入。' }
@@ -23,7 +23,10 @@ export function describeOpenError(err) {
 
 export async function openBook(view, file) {
     log.info('开始打开书籍', { name: file?.name, size: file?.size, type: file?.type })
-    // view.open() 内部按 magic 派发到 EPUB / MOBI / FB2 / CBZ（zip.js 与 fflate 都在包内 vendor）
+    // view.open() 按容器派发，不看扩展名（view.js:72-110）：zip 头再分 CBZ / FBZ / EPUB；
+    // 非 zip 的走 'BOOKMOBI' 判定进 mobi.js，由它内部按 MOBI 版本头分给 MOBI6 或 KF8。
+    // 所以 AZW3（=KF8，版本头 8）用的是 MOBI 那条通道，扩展名只决定文件选择器放不放行。
+    // FB2 是唯一的例外：非 zip 的那支按文件名/类型判（isFB2），不认内容 magic。
     await view.open(file)
     log.info('书籍对象已建立', {
         sections: view.book?.sections?.length ?? 0,

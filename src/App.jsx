@@ -42,10 +42,16 @@ const flattenToc = (toc, out = []) => {
 // 页码要排版过才知道（paginator 的 pages 只量当前已加载那一章），没渲染的章无从问起；
 // 而每章的字符数在开书时就全知道了（sections[i].size），累加即起始位置 ——
 // 与 foliate 自己的 SectionProgress 同一套算法（progress.js:60-72），所以和底栏那个 % 互相对得上。
+// 段号用 splitTOCHref 拿，它是同步的：EPUB 返回 [段 id, 锚点]、MOBI6 与 KF8 返回 [段号, ...]
+// （mobi.js:863、mobi.js:1197），所以第一个元素是数字就当段号，是字符串就去 ids 里查。
+// 别用 resolveHref：KF8 那版是 async 而且会去读原始字节解码片段（mobi.js:1183-1191），
+// 给整本目录逐个算是拿错刀；同步调它只会拿到一个 Promise，百分比静默全空（AZW3 实测踩过）。
 const tocStartFractions = (book, items) => {
-    const sizes = (book?.sections ?? []).map(s => (s.linear !== 'no' && s.size > 0 ? s.size : 0))
+    const sections = book?.sections ?? []
+    const sizes = sections.map(s => (s.linear !== 'no' && s.size > 0 ? s.size : 0))
     const total = sizes.reduce((a, b) => a + b, 0)
-    if (!total || typeof book?.resolveHref !== 'function') return items
+    if (!total || typeof book?.splitTOCHref !== 'function') return items
+    const ids = sections.map(s => s.id)
     const starts = []
     let sum = 0
     for (const size of sizes) {
@@ -53,8 +59,15 @@ const tocStartFractions = (book, items) => {
         sum += size
     }
     return items.map(item => {
-        const index = book.resolveHref(item.href)?.index
-        return index == null ? item : { ...item, start: starts[index] ?? null }
+        let index = null
+        try {
+            const key = book.splitTOCHref(item.href)?.[0]
+            index = typeof key === 'number' ? key : ids.indexOf(key)
+        } catch {
+            return item
+        }
+        // findIndex 找不到时是 -1，不能拿去当下标
+        return index == null || index < 0 ? item : { ...item, start: starts[index] ?? null }
     })
 }
 
@@ -919,7 +932,7 @@ export default function App() {
                         <label className="btn">
                             导入
                             <input ref={inputRef} type="file"
-                                accept=".epub,.mobi,.fb2,.cbz"
+                                accept=".epub,.mobi,.azw3,.fb2,.cbz"
                                 onChange={e => {
                                     pickFile(e.target.files?.[0])
                                     // 清空 value，否则重选同一个文件不会触发 change
@@ -950,7 +963,7 @@ export default function App() {
                             await ackBrowserTab()
                             setError({ tone: 'info', title: '已记下，不再拦导入', detail: '这条风险提醒会一直留在书架上。' })
                         }} />)}
-                    {shelf.length === 0 ? <p className="note">书库是空的。用上方「导入」选择一本 EPUB / MOBI / FB2 / CBZ。</p> : (
+                    {shelf.length === 0 ? <p className="note">书库是空的。用上方「导入」选择一本 EPUB / MOBI / AZW3 / FB2 / CBZ。</p> : (
                         <ul className="shelf">
                             {shelf.map(item => <li key={item.id}>
                                 <button className="shelf-open" onClick={() => openStored(item)}>
@@ -974,7 +987,7 @@ export default function App() {
                         <label className="btn">
                             从备份恢复
                             <input type="file" multiple
-                                accept=".json,.epub,.mobi,.fb2,.cbz"
+                                accept=".json,.epub,.mobi,.azw3,.fb2,.cbz"
                                 onChange={e => {
                                     restoreFromBackup(e.target.files)
                                     e.target.value = ''
