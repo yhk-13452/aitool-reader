@@ -43,8 +43,8 @@ const flattenToc = (toc, out = []) => {
 // 而每章的字符数在开书时就全知道了（sections[i].size），累加即起始位置 ——
 // 与 foliate 自己的 SectionProgress 同一套算法（progress.js:60-72），所以和底栏那个 % 互相对得上。
 // 段号用 splitTOCHref 拿，它是同步的：EPUB 返回 [段 id, 锚点]、MOBI6 与 KF8 返回 [段号, ...]
-// （mobi.js:863、mobi.js:1197），所以第一个元素是数字就当段号，是字符串就去 ids 里查。
-// 别用 resolveHref：KF8 那版是 async 而且会去读原始字节解码片段（mobi.js:1183-1191），
+// （mobi.js:863、mobi.js:1201），所以第一个元素是数字就当段号，是字符串就去 ids 里查。
+// 别用 resolveHref：KF8 那版是 async 而且会去读原始字节解码片段（mobi.js:1183-1200），
 // 给整本目录逐个算是拿错刀；同步调它只会拿到一个 Promise，百分比静默全空（AZW3 实测踩过）。
 const tocStartFractions = (book, items) => {
     const sections = book?.sections ?? []
