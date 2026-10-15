@@ -259,7 +259,16 @@ foliate-view { display: block; width: 100%; height: 100%; }
 .marks .mark-text { background: none; border: none; padding: 0; text-align: start; color: var(--fg); }
 .marks code { display: block; font-size: .7rem; color: var(--muted); overflow-wrap: anywhere; }
 .toc li { padding: .1rem 0; }
-.toc button { background: none; border: none; padding: .25rem 0; font-size: .85rem; }
+.toc button {
+    display: flex; align-items: baseline; gap: .5rem; width: 100%;
+    background: none; border: none; padding: .25rem 0; font-size: .85rem; text-align: start;
+}
+.toc .toc-label { flex: 1; min-width: 0; }
+/* 章节起始位置：这是按字符数累加出来的**全书百分比**，不是排版页码（没渲染的章无从排版） */
+.toc .toc-start { flex: none; font-variant-numeric: tabular-nums; color: var(--muted); font-size: .75rem; }
+/* 当前所在章节：目录按钮不是 .btn，拿不到 .btn.on 那套，所以单独给一条。
+   --ok 只在 :root 定义一次，三档阅读主题共用同一个绿，不随底色变。 */
+.toc button.on { color: var(--ok); font-weight: 600; }
 
 .marks li { display: flex; align-items: baseline; gap: .5rem; }
 .mark-body { flex: 1; min-width: 0; }

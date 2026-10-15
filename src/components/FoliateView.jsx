@@ -132,6 +132,30 @@ export default function FoliateView({
         // view 自己的监听器在 open() 里先注册（view.js:250），所以这里读 lastLocation 已是新值。
         const onRendererRelocate = e => {
             const detail = { ...view.lastLocation, reason: e.detail.reason }
+            // 页码：优先从**这一条事件自己带的数**反算，不去读 renderer 的实时 getter。
+            // paginator 报的是 fraction = (page-1)/(pages-2)、size = 1/(pages-2)（paginator.js:996-1004），
+            // 反过来就是 pages = 2 + 1/size、page = 1 + fraction/size —— 与界面那个百分比同源，
+            // 不会出现「百分比是刚才那次 relocate 的、页码是待会儿布局完的」两帧错位。
+            // 读实时 getter 的旧写法在跳章后就报过 page 1 配 fraction 1，就是这种错位。
+            const { fraction: fracIn, size } = e.detail ?? {}
+            let page = null
+            if (view.isFixedLayout && detail.section) {
+                // 固定版式（CBZ 漫画、pre-paginated EPUB）每张图就是一个 section，序号即页码，
+                // 而且是全书精确值（comic-book.js:48-53）。必须先判这一支：fxl 的 relocate 也带
+                // fraction/size（fixed-layout.js:251-253 恒为 0 与 1），拿上面那个式子反算会永远得到
+                // 「1/3」，与图片张数无关 —— 五张图的夹具就是这么暴露出来的。
+                page = { current: detail.section.current + 1, total: detail.section.total }
+            } else if (typeof size === 'number' && size > 0 && typeof fracIn === 'number') {
+                const total = Math.round(2 + 1 / size)
+                // 上游的 fraction 定义在章末会越界（实测过 1.1176 那一类），页码一律夹进 [1, total]
+                const current = Math.min(Math.max(Math.round(1 + fracIn / size), 1), total)
+                page = { current, total }
+            } else if (typeof e.target?.page === 'number' && typeof e.target?.pages === 'number'
+                && e.target.pages > 0) {
+                // 兜底：真拿不到 size 的场合（比如 flow=scrolled）再读实时 getter
+                page = { current: e.target.page, total: e.target.pages }
+            }
+            detail.page = page
             relocateRef.current?.(detail)
             // 翻页很频繁，逐条记会把日志环（MAX=500）冲掉，真机上反而看不到关键证据；
             // 只有换段才值得记录，页内进度底部浮层实时显示就够用了

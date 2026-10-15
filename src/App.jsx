@@ -27,6 +27,8 @@ import { ns } from './lib/storage.js'
 
 // 安装引导的确认状态存本机：确认过一次就不再每次导入都拦，但标签页的风险提示常驻
 const INSTALL_ACK = ns('install-ack')
+// 点击热区的偏好也存本机：这是手法习惯，跟书无关，换书不该变
+const TAP_MODE = ns('tap-mode')
 
 const flattenToc = (toc, out = []) => {
     for (const item of toc ?? []) {
@@ -34,6 +36,26 @@ const flattenToc = (toc, out = []) => {
         if (item.subitems?.length) flattenToc(item.subitems, out)
     }
     return out
+}
+
+// 目录右侧的「这一章从全书哪儿开始」：只能给百分比，不能给页码。
+// 页码要排版过才知道（paginator 的 pages 只量当前已加载那一章），没渲染的章无从问起；
+// 而每章的字符数在开书时就全知道了（sections[i].size），累加即起始位置 ——
+// 与 foliate 自己的 SectionProgress 同一套算法（progress.js:60-72），所以和底栏那个 % 互相对得上。
+const tocStartFractions = (book, items) => {
+    const sizes = (book?.sections ?? []).map(s => (s.linear !== 'no' && s.size > 0 ? s.size : 0))
+    const total = sizes.reduce((a, b) => a + b, 0)
+    if (!total || typeof book?.resolveHref !== 'function') return items
+    const starts = []
+    let sum = 0
+    for (const size of sizes) {
+        starts.push(sum / total)
+        sum += size
+    }
+    return items.map(item => {
+        const index = book.resolveHref(item.href)?.index
+        return index == null ? item : { ...item, start: starts[index] ?? null }
+    })
 }
 
 const fmtProgress = p => p?.fraction == null ? null : `读到 ${(p.fraction * 100).toFixed(0)}%`
@@ -79,6 +101,9 @@ export default function App() {
     const [drawer, setDrawer] = useState(null)
     const [sel, setSel] = useState(null)
     const [picking, setPicking] = useState(false)
+    // 点击热区的两种手法：默认左=上一页/右=下一页；开着「双侧都下一页」时左边也往前翻
+    // （拇指怎么舒服怎么来，回退交给右滑手势 —— paginator 自带滑动翻页，不需要在这儿留入口）
+    const [tapBothNext, setTapBothNext] = useState(false)
     const [shelf, setShelf] = useState([])
     const [audit, setAudit] = useState(null)
     const [error, setError] = useState(null)
@@ -104,6 +129,7 @@ export default function App() {
     // 最近一次移动是不是我们主动发起的列表跳转；读者一翻页就翻回 false
     const selfJump = useRef(false)
     const stageRef = useRef(null)
+    const tocRef = useRef(null)
     const pendingProgress = useRef(null)
     const progressTimer = useRef(0)
     const readingRef = useRef(null)
@@ -116,19 +142,28 @@ export default function App() {
     useEffect(() => {
         (async () => {
             try {
-                const [result, items, ack, typo] = await Promise.all([
+                const [result, items, ack, typo, tap] = await Promise.all([
                     checkLibrary(), listShelf(), getSetting(INSTALL_ACK), loadTypography(),
+                    getSetting(TAP_MODE),
                 ])
                 setAudit(result)
                 setShelf(items)
                 setInstallAck(!!ack?.value?.at)
                 setType(typo)
+                setTapBothNext(!!tap?.value?.bothNext)
             } catch (e) {
                 log.error('书库读取失败', e)
                 setError({ title: '本地存储读不出来', detail: String(e?.message ?? e) })
             }
         })()
     }, [])
+
+    // 打开目录时把当前那一章滚进可见区。只在「抽屉打开」这一刻滚一次：
+    // 挂在按钮的 ref 回调上会变成「每次重渲染都抢一次滚动」，读者自己滑到别处又被拽回去。
+    useEffect(() => {
+        if (drawer !== 'toc') return
+        tocRef.current?.querySelector('button.on')?.scrollIntoView({ block: 'center' })
+    }, [drawer])
 
     // 高亮跟着书签列表走：新增/删除/换书都重画一遍，省掉逐条同步的分支
     useEffect(() => {
@@ -301,7 +336,13 @@ export default function App() {
             setChrome(true)
             return
         }
-        if (relX < EDGE) { turnLeft(); return }
+        if (relX < EDGE) {
+            // 「双侧都下一页」只改这一处：左区也走 turnRight。往回翻交给 paginator 自带的右滑手势，
+            // 不在这里留第二个入口 —— iOS 的长按已经被原生选字连同系统菜单一起占走了。
+            if (tapBothNext) turnRight()
+            else turnLeft()
+            return
+        }
         if (relX > 1 - EDGE) { turnRight(); return }
         if (picking) {
             onPick(target)
@@ -455,7 +496,7 @@ export default function App() {
 
     const onReady = async (v, f, restored) => {
         setView(v)
-        setToc(flattenToc(v.book?.toc))
+        setToc(tocStartFractions(v.book, flattenToc(v.book?.toc)))
         highlighterRef.current?.dispose()
         highlighterRef.current = createHighlighter(v)
         scriptRef.current?.dispose()
@@ -709,6 +750,17 @@ export default function App() {
         }
     }
 
+    // 翻页热区是手法习惯，跟具体哪本书无关，所以单独一个键存本机。写失败不改当前这一页，
+    // 顶多是下次启动读回旧值 —— 同 applyType 的取舍。
+    const applyTapMode = async bothNext => {
+        setTapBothNext(bothNext)
+        try {
+            await setSetting(TAP_MODE, { bothNext })
+        } catch (e) {
+            log.warn('翻页热区设置保存失败', e)
+        }
+    }
+
     // 三条横幅：书架页按文档流排布，阅读页改成盖在正文上的浮层。内容完全一致，只是位置不同
     const bannersTop = <>
         {audit?.wiped && <p className="error-banner fatal">
@@ -745,8 +797,11 @@ export default function App() {
         <button onClick={() => setError(null)}>关闭</button>
     </p>
 
+    // 页码是**本章内**的第几页 / 本章共几页（paginator 的实时 page/pages；固定版式则是图片序号/图片数）。
+    // 全书总页数要渲染完整本书才知道，所以这里不写成「全书页码」，避免看着像精确值。
+    const pageLabel = loc?.page ? `${loc.page.current}/${loc.page.total} ` : ''
     const progress = loc
-        ? `${((loc.fraction ?? 0) * 100).toFixed(1)}%${loc.tocItem?.label ? ` · ${loc.tocItem.label}` : ''}`
+        ? `${pageLabel}${((loc.fraction ?? 0) * 100).toFixed(1)}%${loc.tocItem?.label ? ` · ${loc.tocItem.label}` : ''}`
         : '等待首次渲染…'
 
     // 底栏右侧那颗按钮只在「当前屏幕是跳过来的」时出现；自己翻过一页就消失（PAGING 分支会清）
@@ -811,9 +866,16 @@ export default function App() {
                 </footer>
 
                 {drawer === 'toc' && <Drawer side="left" title={`目录（${toc.length}）`} onClose={closeDrawer}>
-                    <ul className="toc">
+                    <ul className="toc" ref={tocRef}>
                         {toc.map((t, i) => <li key={i}>
-                            <button onClick={() => jump(() => view?.goTo(t.href), '目录')}>{t.label}</button>
+                            {/* 当前章节靠 relocate 报上来的 tocItem 的 href 认 —— 上游 reader.js 用的也是这个判据
+                                （reader.js:205 setCurrentHref(tocItem.href)）。多条目录项指同一个 href 时会一起亮，
+                                那是它们本来就指向同一处，不算误报。 */}
+                            <button className={t.href && t.href === loc?.tocItem?.href ? 'on' : ''}
+                                onClick={() => jump(() => view?.goTo(t.href), '目录')}>
+                                <span className="toc-label">{t.label}</span>
+                                {t.start != null && <span className="toc-start">{(t.start * 100).toFixed(0)}%</span>}
+                            </button>
                         </li>)}
                     </ul>
                 </Drawer>}
@@ -841,6 +903,7 @@ export default function App() {
                     <ReaderSettings type={type} onType={applyType}
                         scriptMode={scriptMode} onScript={switchScript}
                         picking={picking} onPicking={setPicking}
+                        tapBothNext={tapBothNext} onTapBothNext={applyTapMode}
                         onCheck={() => { setDrawer(null); setShowCheck(true) }} />
                 </Drawer>}
 
