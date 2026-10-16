@@ -3,7 +3,7 @@ import { fmtBytes } from './format.js'
 import { STORAGE_PREFIX, BOOK_META_PREFIX } from './storage.js'
 import {
     putBook, getBook, deleteBook,
-    putAnnotation, deleteAnnotation, deleteAnnotationsByBook,
+    putAnnotation, getAnnotation, deleteAnnotation, deleteAnnotationsByBook,
     deleteReadingByBook,
     getSetting, setSetting, deleteSetting, settingsWithPrefix, readCounts,
 } from './db.js'
@@ -173,6 +173,17 @@ export async function addAnnotation(bookId, { type, locator, text, note }) {
 export async function removeAnnotation(id) {
     await deleteAnnotation(id)
     await refreshFingerprint()
+}
+
+// 书签的备注（＝读者自己的批注）。只改 note 与 updated：text 和 locator 是采集那一刻定下的，
+// 重写它们等于给一条旧书签换位置串，跳回去会落到不该落的地方。
+// 不刷指纹：备注改动不影响任何计数，而指纹是「数量对账」，多写一次只是给 settings 表添噪声。
+export async function setAnnotationNote(id, note) {
+    const record = await getAnnotation(id)
+    if (!record) throw new Error('annotation-not-found')
+    const next = { ...record, note, updated: Date.now() }
+    await putAnnotation(next)
+    return next
 }
 
 // ---- 库指纹自检 ----

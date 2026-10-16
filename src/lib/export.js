@@ -40,7 +40,7 @@ function bookmarkMarkdown(book, marks) {
     marks.forEach((m, i) => {
         lines.push(`## ${i + 1}. ${m.text.slice(0, 30)}`, '')
         for (const para of m.text.split(/\n+/)) lines.push(`> ${para}`)
-        if (m.note) lines.push('>', `> 笔记：${m.note}`)
+        if (m.note) lines.push('>', ...m.note.split(/\n+/).map((l, i) => i ? `> ${l}` : `> 笔记：${l}`))
         lines.push('', `位置：\`${m.locator}\` · 收藏于 ${fmtTime(m.created)}`, '')
     })
     return lines.join('\n')

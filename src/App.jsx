@@ -4,6 +4,7 @@ import { captureParagraph, captureSelection, clearSelections } from './lib/selec
 import { listAnnotations, getSetting, setSetting } from './lib/db.js'
 import {
     importBook, toFile, getBookRecord, removeBook, addAnnotation, removeAnnotation,
+    setAnnotationNote,
     checkLibrary, listShelf, renameBookTitle, saveProgress, discardFailedImport,
 } from './lib/library.js'
 import { createHighlighter } from './lib/highlight.js'
@@ -109,6 +110,11 @@ export default function App() {
     const [marks, setMarks] = useState([])
     // 书签列表的显示文本：存的一律是原始字形，这里只是按当前简繁设置转一份来显示
     const [markText, setMarkText] = useState(new Map())
+    // 正在写备注的那条书签 id 与草稿。备注是读者自己打的字，**不进上面那条简繁通道**：
+    // 显示转换只映射 m.text，而备注走的是 m.note 原样显示 —— 否则读者在繁体档下写的字
+    // 切回原文档时被换了一遍，那已经不是他写的那句话了。
+    const [noteFor, setNoteFor] = useState(null)
+    const [noteDraft, setNoteDraft] = useState('')
     // 阅读界面的三态浮层：菜单条、抽屉（目录/书签/设置）、选区工具条
     const [chrome, setChrome] = useState(true)
     const [drawer, setDrawer] = useState(null)
@@ -303,6 +309,20 @@ export default function App() {
 
     const closeDrawer = () => setDrawer(null)
     const toggleDrawer = name => setDrawer(d => (d === name ? null : name))
+
+    // 离开书签抽屉就把备注草稿收掉：关抽屉、切去目录/设置、换书都走这一条，
+    // 否则下次点开书签会看到一个还开着的编辑框，里面是上一本的半成品话。
+    useEffect(() => {
+        if (drawer !== 'marks') { setNoteFor(null); setNoteDraft('') }
+    }, [drawer])
+
+    // 编辑框冒出来就先把它滚进视野：书签可以攒很长，而 iOS 弹键盘时看不见输入框等于写不了字。
+    // 判据用「谁在编辑」这个 state，不挂内联 ref —— 内联 ref 每次重渲染都会被再叫一次，
+    // 读者自己滑到别处会被拽回来（抽屉自动滚当前章那条踩过同一件事）。
+    useEffect(() => {
+        if (!noteFor) return
+        document.querySelector('.note-edit')?.scrollIntoView({ block: 'center' })
+    }, [noteFor])
 
     // 翻页前先把「参观」标记清掉：章末那一下 foliate 会把「进入下一章」报成 navigation，
     // 只看 reason 就分不清是读者翻过去的还是我们跳过去的
@@ -694,6 +714,35 @@ export default function App() {
     const dropBookmark = async mark => {
         await removeAnnotation(mark.id)
         setMarks(list => list.filter(m => m.id !== mark.id))
+        // 正在写的这条被删了，草稿就别留在空气里（否则下一次打开编辑框看到的是废文本）
+        if (noteFor === mark.id) { setNoteFor(null); setNoteDraft('') }
+    }
+
+    const startNote = mark => {
+        setNoteFor(mark.id)
+        setNoteDraft(mark.note ?? '')
+    }
+
+    const cancelNote = () => { setNoteFor(null); setNoteDraft('') }
+
+    // 存空串就是「清掉备注」，不是「没改」—— 读者把话删干净也是一种编辑
+    const saveNote = async mark => {
+        const note = noteDraft.trim()
+        try {
+            await setAnnotationNote(mark.id, note)
+        } catch (e) {
+            // 写失败时草稿留在框里，界面仍显示旧备注 —— 不能让用户以为已经存上了
+            log.warn('备注保存失败', { id: mark.id, reason: String(e?.message ?? e) })
+            setError({
+                tone: 'error',
+                title: '备注没存上',
+                detail: '先「导出全库备份」保住现有的话，再重试。内容还留在框里，没丢。',
+            })
+            return
+        }
+        setMarks(list => list.map(m => m.id === mark.id ? { ...m, note } : m))
+        cancelNote()
+        setError({ tone: 'info', title: note ? '已写备注' : '已清空备注', detail: note.slice(0, 40) })
     }
 
     const report = res => setError(res.ok
@@ -901,8 +950,17 @@ export default function App() {
                         {marks.map(m => <li key={m.id}>
                             <div className="mark-body">
                                 <button className="mark-text" onClick={() => goToBookmark(m)}>{markText.get(m.id) ?? m.text}</button>
+                                {noteFor === m.id ? <div className="note-edit">
+                                    <textarea className="mark-note-input" rows={3} value={noteDraft}
+                                        placeholder="为什么收这一段（只存这台设备）"
+                                        onChange={e => setNoteDraft(e.target.value)} />
+                                    <button className="btn on" onClick={() => saveNote(m)}>保存</button>
+                                    <button className="btn" onClick={cancelNote}>取消</button>
+                                </div> : (m.note ? <p className="mark-note">{m.note}</p> : null)}
                                 <code>{m.locator}</code>
                             </div>
+                            {noteFor !== m.id && <button className="mark-note-btn"
+                                onClick={() => startNote(m)}>{m.note ? '改备注' : '备注'}</button>}
                             <button className="mark-del" aria-label="删除书签" onClick={() => dropBookmark(m)}>✕</button>
                         </li>)}
                     </ul>

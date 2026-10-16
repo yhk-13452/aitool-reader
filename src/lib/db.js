@@ -89,6 +89,7 @@ export const deleteBook = id => run(STORE_BOOKS, 'readwrite', s => s.delete(id))
 // ---- annotations ----
 
 export const putAnnotation = record => run(STORE_ANNOTATIONS, 'readwrite', s => s.put(record))
+export const getAnnotation = id => run(STORE_ANNOTATIONS, 'readonly', s => s.get(id))
 export const deleteAnnotation = id => run(STORE_ANNOTATIONS, 'readwrite', s => s.delete(id))
 
 export function listAnnotations(bookId) {

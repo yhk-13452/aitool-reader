@@ -289,6 +289,50 @@ foliate-view { display: block; width: 100%; height: 100%; }
     font-size: .8rem;
 }
 
+/* 备注是读者自己写的字：原样显示、保住换行，也不进简繁转换那条通道 */
+.mark-note {
+    margin: .3rem 0 .2rem;
+    padding-inline-start: .5rem;
+    border-inline-start: 2px solid var(--line);
+    font-size: .85rem;
+    color: var(--fg);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.mark-note-btn {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--muted);
+    padding: .2rem .3rem;
+    font-size: .8rem;
+}
+
+.note-edit {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    align-items: flex-start;
+    margin: .4rem 0 .2rem;
+}
+
+/* 字号刻意留到 16px：iOS Safari 见到小于 1rem 的输入框会在聚焦时把整页放大，
+   抽屉里就会出现「键盘弹起、页面zoom到别处、看不见自己在打什么」 */
+.mark-note-input {
+    flex: 1 1 100%;
+    min-height: 4.5rem;
+    font: inherit;
+    font-size: 1rem;
+    line-height: 1.5;
+    padding: .4rem .5rem;
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    resize: vertical;
+}
+
 .shelf { list-style: none; padding: 0; margin: 0; display: grid; gap: .55rem; }
 .shelf li { display: flex; align-items: center; gap: .35rem; }
 /* 整张卡片就是点击目标：只给书名加边框会让人以为整行都能点 */
