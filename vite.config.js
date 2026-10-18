@@ -94,7 +94,7 @@ export default defineConfig({
                 background_color: '#1a1a2e',
                 theme_color: '#1a1a2e',
                 // 图标尺寸全部如实标注：180/512/1024 各是真实像素，maskable 版另存一份
-                // （主体缩到 80% 安全区、四角补主题色），由 build/make-icons.ps1 从原图派生
+                // （主体缩到 80% 安全区、外圈由原图边缘向外抹开），由 build/make-icons.swift 派生
                 icons: [
                     { src: 'apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
                     { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
