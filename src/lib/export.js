@@ -130,6 +130,13 @@ export async function restoreBackup(picked) {
     if (manifest.version !== BACKUP_VERSION) throw new Error(`备份版本 ${manifest.version} 当前版本读不了`)
 
     const others = picked.filter(f => f !== manifestFile)
+    // 最容易踩的一格：只选中了清单、没把书本身一起选上。这时逐本报「没认出来」会把人
+    // 往「文件坏了/名字不对」上带，其实是一个都没给 —— 单独说清，别让他去猜文件名。
+    if (!others.length && (manifest.books?.length ?? 0) > 0) {
+        const n = manifest.books.length
+        throw new Error(`这次只收到清单一个文件，没收到书本身（清单里记了 ${n} 本）。`
+            + `恢复要把清单和这 ${n} 本书的文件一起选中。`)
+    }
     // 一个文件只能认领一本书，否则两本同尺寸的书会抢同一个
     const taken = new Set()
     const restored = []

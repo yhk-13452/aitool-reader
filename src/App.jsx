@@ -427,6 +427,36 @@ export default function App() {
         return () => clearTimeout(timer)
     }, [book, error])
 
+    // 上游分页器在 visualViewport.scale > 1 时把滑动整条 return 掉（paginator.js:861-862、:897），
+    // 界面上却什么都不说 —— 读者只会得到「左右滑动翻页坏了」。所以进入放大态时提一句，
+    // 捏回 100% 不打扰；底部那条 chip 是给开着工具条时留的常驻状态。
+    const [zoomed, setZoomed] = useState(false)
+    const zoomedRef = useRef(false)
+    useEffect(() => {
+        const vv = window.visualViewport
+        if (!book) { zoomedRef.current = false; setZoomed(false); return undefined }
+        if (!vv) return undefined
+        const onViewport = () => {
+            const z = vv.scale > 1.001
+            if (z === zoomedRef.current) return
+            zoomedRef.current = z
+            setZoomed(z)
+            if (z) setError({
+                tone: 'info',
+                title: '页面被放大了',
+                detail: '放大状态下左右滑动不翻页（分页器自己的判定），双指捏回 100% 就恢复。'
+                    + '想让字永久变大请用设置里的「字号」—— 那个会跟着备份走，缩放不会。',
+            })
+        }
+        onViewport()
+        vv.addEventListener('resize', onViewport)
+        vv.addEventListener('scroll', onViewport)
+        return () => {
+            vv.removeEventListener('resize', onViewport)
+            vv.removeEventListener('scroll', onViewport)
+        }
+    }, [book])
+
     const closeBook = () => {
         setPicking(false)
         setDrawer(null)
@@ -948,6 +978,7 @@ export default function App() {
 
                 <footer className={`chrome chrome-bottom${chrome ? '' : ' hide'}`}>
                     <span className="note">{progress}</span>
+                    {zoomed && <span className="chip">已放大·滑动不翻页</span>}
                     {picking && <span className="chip">点段收藏中</span>}
                     {scriptMode !== 'orig' && <span className="chip">
                         {SCRIPT_MODES.find(m => m.key === scriptMode)?.label}
