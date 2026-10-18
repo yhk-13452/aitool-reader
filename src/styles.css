@@ -397,8 +397,25 @@ foliate-view { display: block; width: 100%; height: 100%; }
 .year-pick { display: inline-flex; gap: .25rem; }
 .stats-months { list-style: none; padding: 0; margin: 0; }
 .stats-months > li { padding: .4rem 0; border-bottom: 1px solid var(--line); }
-.stats-month { display: flex; align-items: baseline; gap: .6rem; }
+.stats-month {
+    /* 这一行是个可点的按钮，但外观要保持原来那行纯文本的样子：
+       加了边框底色会让 12 行看起来像 12 个控件，读起来像设置页 */
+    display: flex; width: 100%; align-items: baseline; gap: .6rem;
+    background: none; border: none; border-radius: 0; padding: 0;
+    text-align: start; color: var(--fg);
+}
+.stats-month:disabled { opacity: .4; }
 .stats-month strong { min-width: 3.2rem; }
+.stats-weeks {
+    list-style: none; margin: .3rem 0 .1rem; padding: 0 0 0 .9rem;
+    border-left: 1px solid var(--line);
+}
+.stats-weeks > li { padding: .2rem 0; }
+.stats-week-head { display: flex; align-items: baseline; gap: .6rem; font-size: .85rem; }
+.stats-week-label { flex: 1; min-width: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats-year-books { margin: .75rem 0; }
+.stats-year-books > strong { display: block; font-size: .85rem; margin-bottom: .15rem; }
+.stats-year-books .stats-books { margin: 0; padding-left: 1rem; }
 .stats-books { list-style: none; margin: .25rem 0 0; padding: 0 0 0 1rem; }
 .stats-books li { display: flex; align-items: baseline; gap: .6rem; font-size: .85rem; padding: .12rem 0; }
 .stats-book-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }

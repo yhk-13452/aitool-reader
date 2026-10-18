@@ -10,7 +10,7 @@ import {
 import { createHighlighter } from './lib/highlight.js'
 import { createScriptSwitcher, SCRIPT_MODES } from './lib/script.js'
 import { DEFAULTS as TYPO_DEFAULTS, loadTypography, saveTypography, readerCss, themeOf } from './lib/typography.js'
-import { createReadingTracker, readingYear } from './lib/reading.js'
+import { createReadingTracker, readingYear, readingTotalsByBook, bookDisplayName, fmtDuration } from './lib/reading.js'
 import { applyUpdate, subscribe } from './lib/update.js'
 import { bookmarkFiles, libraryBackupFiles, restoreBackup } from './lib/export.js'
 import { saveFiles } from './lib/share.js'
@@ -136,6 +136,8 @@ export default function App() {
     const [scriptMode, setScriptMode] = useState('orig')
     const [statsYear, setStatsYear] = useState(new Date().getFullYear())
     const [stats, setStats] = useState(null)
+    // 每本书的全架累计阅读时长（bookId → 毫秒），书架卡片那一行用它
+    const [readTotals, setReadTotals] = useState(new Map())
     const [readingRev, setReadingRev] = useState(0)
     const [installAck, setInstallAck] = useState(false)
     const [pendingFile, setPendingFile] = useState(null)
@@ -239,6 +241,14 @@ export default function App() {
             .then(setStats)
             .catch(e => log.warn('阅读时长统计读取失败', e))
     }, [statsYear, shelf, book, readingRev])
+
+    // 书架卡片上那行「读了多久」要的是**全架累计**（不限年份），所以与 readingYear 分开算：
+    // 同一个 reading 表，两种汇总口径，混用会让「今年」和「这本书一共」互相看起来对不上。
+    useEffect(() => {
+        readingTotalsByBook()
+            .then(setReadTotals)
+            .catch(e => log.warn('按书阅读时长读取失败', e))
+    }, [shelf, book, readingRev])
 
     // iOS 上「关掉 App」常常直接杀进程，不给 unload 时机；pagehide 是还能抢救的一下
     useEffect(() => {
@@ -889,6 +899,12 @@ export default function App() {
             }} />}
     </>
 
+    // 全部时间的按书合计，给统计面板那节用。一秒都没读过的书不进列表（不是藏数据，
+    // 是「0 秒」这种行只会把真正在读的书挤出视线）；取名走 reading.js 那一把尺子
+    const readAllTime = shelf.map(b => ({ id: b.id, name: bookDisplayName(b), ms: readTotals.get(b.id) ?? 0 }))
+        .filter(b => b.ms > 0)
+        .sort((a, b) => b.ms - a.ms)
+
     return (
         <div className="app">
             {book ? <div className="stage" ref={stageRef}
@@ -1030,6 +1046,8 @@ export default function App() {
                                         {fmtProgress(item.progress)
                                             ? `${fmtBytes(item.size)} · ${fmtProgress(item.progress)}`
                                             : `${fmtBytes(item.size)} · 未开始`}
+                                        {/* 一秒都没读过的书不占这一行 —— 「读到 0%」已经说明它没被打开过 */}
+                                        {readTotals.get(item.id) ? ` · 读了 ${fmtDuration(readTotals.get(item.id))}` : ''}
                                         {item.added ? ` · 导入于 ${fmtDate(item.added)}` : ''}
                                     </span>
                                 </button>
@@ -1038,7 +1056,7 @@ export default function App() {
                         </ul>
                     )}
 
-                    <ReadingStats data={stats} year={statsYear} onYear={setStatsYear} />
+                    <ReadingStats data={stats} year={statsYear} onYear={setStatsYear} allTime={readAllTime} />
 
                     <div className="backup-row">
                         <button className="btn" onClick={exportLibrary}>导出全库备份</button>
