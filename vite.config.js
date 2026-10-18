@@ -81,6 +81,10 @@ export default defineConfig({
         react(),
         VitePWA({
             registerType: 'prompt',
+            // manifest 里列的图标不再被自动追加进预缓存：这个开关默认开着，会把 icons[].src
+            // 绕过下面 workbox.globIgnores 直接塞进 precache（实测：关掉前那三张大图仍在名单里）。
+            // 关掉后哪些图标进预缓存就只由 globPatterns / globIgnores 说了算。
+            includeManifestIcons: false,
             manifest: {
                 name: '本地电子书阅读器',
                 short_name: '阅读器',
@@ -105,6 +109,10 @@ export default defineConfig({
             workbox: {
                 // 不缓存书籍本身，只缓存应用外壳
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+                // 大图标不进预缓存：iOS 装主屏只取 apple-touch-icon（180），1024/512 与 maskable
+                // 是 Android 与桌面安装器要的，为它们让每个新装客户端首屏多下 1.4 MB 不值当。
+                // 文件照常发布在站点根目录，安装器要时走网络拿。
+                globIgnores: ['**/pwa-1024.png', '**/pwa-512.png', '**/pwa-512-maskable.png'],
             },
         }),
         assertPrecache(),
