@@ -2,8 +2,9 @@ import { log } from './log.js'
 import {
     listShelf, getBookRecord, getBookMeta, importBook, importBookMeta, bookIdOf,
 } from './library.js'
-import { listAnnotations, putAnnotation } from './db.js'
+import { listAnnotations, putAnnotation, listReading, getReading, putReading } from './db.js'
 import { fileFromText } from './share.js'
+import { loadTypography, saveTypography } from './typography.js'
 
 export const BACKUP_FORMAT = 'aitool-reader-backup'
 export const BOOKMARK_FORMAT = 'aitool-reader-bookmarks'
@@ -86,23 +87,36 @@ export async function libraryBackupFiles() {
     }
     const annotations = []
     for (const book of books) annotations.push(...await annotationList(book.id))
+    // 阅读时长整表带走：一条记录 = 一本书一个自然日的毫秒数，一年也就几百条。
+    // 不筛书 —— 移出书架时记录会跟着删，所以表里不该有幽灵行；真有的话恢复那头按
+    // 「书没回来就不写」挡住，不会往书架上凭空拉出一本书。
+    const reading = await listReading() ?? []
     const manifest = {
         format: BACKUP_FORMAT,
         version: BACKUP_VERSION,
         exportedAt: Date.now(),
         books,
         annotations,
+        reading,
+        // 排版（字号/行距/对齐/主题）是全局一份存在 settings 里，重装主屏图标就会没。
+        // 以前备份只装书与书签，读者调好的那套排版压根不在里面 —— 补上。
+        // version 不升：这些字段是叠加的，老版本读不到就当没有，新备份缺它也能恢复。
+        settings: { typography: await loadTypography() },
     }
     files.unshift(fileFromText(`aitool-reader-backup-${stamp()}.json`,
         JSON.stringify(manifest, null, 2), 'application/json'))
-    log.info('全库备份已打包', { books: books.length, annotations: annotations.length })
+    log.info('全库备份已打包', { books: books.length, annotations: annotations.length, reading: reading.length })
     return files
 }
 
 const isManifest = f => /\.json$/i.test(f.name)
+const extOf = n => (n.match(/\.[^.]+$/)?.[0] ?? '').toLowerCase()
 
-// 恢复靠 (name, size, lastModified) 认书：这三个正是书库 id 的哈希输入，
-// 只要文件本身没被改过，重新导入就会算出同一个 id，书签自然接回原来的书。
+// 恢复靠 (name, size, lastModified) 这三元组认书 —— 它们正是书库 id 的哈希输入。
+// 但**文件名不能逐字信**：iOS「存储到文件」撞名会自动加 " 2"，备份里的 `三重门.epub`
+// 落回磁盘就成了 `三重门 2.epub`，逐字比相等会把每一本都判成「没找到」。
+// 所以先按同名同尺寸配，配不上再按「同尺寸 + 同扩展名」取候选，名字一律用清单里那个重建，
+// 时间拿文件自身与清单记录各试一次 —— **id 对上才算同一本书**，这比字符串相等硬得多。
 export async function restoreBackup(picked) {
     const manifestFile = picked.find(isManifest)
     if (!manifestFile) throw new Error('选中的文件里没有备份清单（那个 .json）')
@@ -116,35 +130,53 @@ export async function restoreBackup(picked) {
     if (manifest.version !== BACKUP_VERSION) throw new Error(`备份版本 ${manifest.version} 当前版本读不了`)
 
     const others = picked.filter(f => f !== manifestFile)
+    // 一个文件只能认领一本书，否则两本同尺寸的书会抢同一个
+    const taken = new Set()
     const restored = []
     const skipped = []
     for (const book of manifest.books ?? []) {
-        const file = others.find(f => f.name === book.name && f.size === book.size)
-        if (!file) {
-            skipped.push(book.name)
-            log.warn('备份里的书没在选中文件中找到', { name: book.name, size: book.size })
-            continue
-        }
-        // 书库 id 的哈希输入就是 (name, size, lastModified)，而 lastModified 最容易变：
-        // 文件被拷来拷去 mtime 就变了。所以先按文件自身的时间试，再退回清单里记的时间，
-        // 两个都不是就算不出原 id —— 那种情况如实跳过，不硬凑。
-        const times = [...new Set([file.lastModified, book.lastModified]
+        const free = () => others.filter(f => !taken.has(f))
+        const exact = free().find(f => f.name === book.name && f.size === book.size)
+        // 名字不同也没关系，尺寸与扩展名对上的都当候选，交给 id 去判
+        const candidates = exact ? [exact]
+            : free().filter(f => f.size === book.size && extOf(f.name) === extOf(book.name))
+        const times = [...new Set([book.lastModified, ...candidates.map(f => f.lastModified)]
             .filter(t => typeof t === 'number' && Number.isFinite(t)))]
         let match = null
-        for (const lastModified of times) {
-            const candidate = new File([file], book.name, { type: book.type || file.type, lastModified })
-            if (await bookIdOf(candidate) === book.id) { match = candidate; break }
+        let matchFile = null
+        let renamedTo = null
+        for (const file of candidates) {
+            for (const lastModified of times) {
+                const candidate = new File([file], book.name, { type: book.type || file.type, lastModified })
+                if (await bookIdOf(candidate) === book.id) {
+                    match = candidate
+                    matchFile = file
+                    renamedTo = file.name === book.name ? null : file.name
+                    break
+                }
+            }
+            if (match) break
         }
         if (!match) {
-            skipped.push(`${book.name}（文件属性对不上，认不出是同一本书）`)
-            log.warn('备份里的书无法还原编号', { name: book.name, size: book.size, bookId: book.id })
+            // 把「到底收到了哪些文件」一起报出来：这次三本全跳，光看书名分不清是没选上还是名字变了
+            skipped.push(`${book.name}（${book.size} 字节，在选中的文件里没认出来）`)
+            log.warn('备份里的书没在选中文件中找到', {
+                name: book.name, size: book.size, bookId: book.id,
+                选中了: others.map(f => `${f.name}=${f.size}`),
+            })
             continue
         }
+        taken.add(matchFile)
         // 单本书失败不该中断整次恢复（空间不够、写坏都只影响这一本），如实记进 skipped
         try {
             const { record, isNew } = await importBook(match)
             await importBookMeta(record.id, book.meta)
-            restored.push({ id: record.id, name: book.name, isNew })
+            restored.push({
+                id: record.id, name: book.name, isNew,
+                // 认回来这件事要说得出证据，不然用户以为我们偷偷放宽了什么
+                ...(renamedTo ? { renamedFrom: renamedTo } : {}),
+            })
+            if (renamedTo) log.info('备份里的书按内容认回（文件名已被系统改动）', { 清单里: book.name, 实际文件: renamedTo })
         } catch (e) {
             skipped.push(`${book.name}（${String(e?.message ?? e)}）`)
             log.warn('备份里的书导入失败', { name: book.name, reason: String(e?.message ?? e) })
@@ -159,6 +191,24 @@ export async function restoreBackup(picked) {
         await putAnnotation({ ...a })
         annotations++
     }
-    log.info('备份恢复完成', { restored: restored.length, skipped: skipped.length, annotations })
-    return { restored, skipped, annotations, books: manifest.books?.length ?? 0 }
+    // 阅读时长**只增不减**：一台机重装后可能又读了几分钟，那比备份新，
+    // 拿旧值盖回去等于把人家刚读掉的抹掉。按 `${bookId}|${day}` 逐日取较大值。
+    let reading = 0
+    for (const r of manifest.reading ?? []) {
+        if (!restoredIds.has(r.bookId) || !r.day) continue
+        const id = `${r.bookId}|${r.day}`
+        const existing = await getReading(id)
+        const ms = Math.max(existing?.ms ?? 0, r.ms ?? 0)
+        if (!ms || ms === existing?.ms) continue
+        await putReading({ id, bookId: r.bookId, day: r.day, ms, updated: Date.now() })
+        reading++
+    }
+    // 排版是全局一份（字号/行距/对齐/主题），老备份没这个字段就跳过，不算错
+    let typography = false
+    if (manifest.settings?.typography) {
+        await saveTypography(manifest.settings.typography)
+        typography = true
+    }
+    log.info('备份恢复完成', { restored: restored.length, skipped: skipped.length, annotations, reading, typography })
+    return { restored, skipped, annotations, reading, typography, books: manifest.books?.length ?? 0 }
 }

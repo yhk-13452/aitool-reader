@@ -799,10 +799,23 @@ export default function App() {
             const result = await restoreBackup([...list])
             setShelf(await listShelf())
             setAudit(await checkLibrary())
+            // 备份里带了排版就把内存里那份一起换掉：只写库不刷新，界面上还是默认字号，
+            // 得等下次冷启动才看得见恢复结果 —— 那正好是「明明恢复了却看着没生效」的样子
+            if (result.typography) setType(await loadTypography())
+            const renamed = result.restored.filter(r => r.renamedFrom)
+            const detail = [
+                result.skipped.length ? `没接回来的：${result.skipped.join('；')}` : null,
+                // 认回来说得出证据：不写的话用户以为我们放宽到什么地步都说不清
+                renamed.length
+                    ? `按内容认回（文件名被系统改过）：${renamed.map(r => `${r.name} ← ${r.renamedFrom}`).join('；')}`
+                    : null,
+            ].filter(Boolean).join(' ')
             setError({
                 tone: result.skipped.length ? undefined : 'info',
-                title: `恢复完成：${result.restored.length} 本书 / ${result.annotations} 条书签`,
-                detail: result.skipped.length ? `没接回来的：${result.skipped.join('；')}` : null,
+                title: `恢复完成：${result.restored.length} 本书 / ${result.annotations} 条书签`
+                    + `${result.reading ? ` / ${result.reading} 天阅读时长` : ''}`
+                    + `${result.typography ? ' / 排版设置已恢复' : ''}`,
+                detail: detail || null,
             })
         } catch (e) {
             log.error('恢复备份失败', e)
